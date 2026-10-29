@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, AlertCircle, Sun, Moon, ArrowRight, Mail, Key, Eye, EyeOff, User, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Lock, AlertCircle, Sun, Moon, ArrowRight, Mail, Key, Eye, EyeOff, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { auth, googleProvider, signInWithPopup, signOut } from '../firebase';
 
 interface AuthGateProps {
   onSuccessLogin: (email: string) => void;
@@ -14,12 +15,11 @@ export const AuthGate: React.FC<AuthGateProps> = ({
 }) => {
   const AUTHORIZED_EMAIL = 'itsmezaki77@gmail.com';
 
-  // Step 1: 'identity' (الحجة الأولية: Name & Email check)
+  // Step 1: 'identity' (Email check)
   // Step 2: 'authenticate' (Authentication Options: Password or Google)
   const [step, setStep] = useState<'identity' | 'authenticate'>('identity');
 
-  // Step 1 Inputs
-  const [fullNameInput, setFullNameInput] = useState('');
+  // Step 1 Input (Email only)
   const [emailInput, setEmailInput] = useState('');
 
   // Step 2 Inputs & Method
@@ -41,13 +41,12 @@ export const AuthGate: React.FC<AuthGateProps> = ({
     );
   };
 
-  // Step 1: Initial Gate Verification (الحجة الأولية)
+  // Step 1: Initial Gate Verification
   const handleIdentitySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
     const cleanEmail = emailInput.trim().toLowerCase();
-    const cleanName = fullNameInput.trim();
 
     if (!cleanEmail) {
       setErrorMsg('Please enter your operator email address. / يرجى إدخال البريد الإلكتروني.');
@@ -86,17 +85,36 @@ export const AuthGate: React.FC<AuthGateProps> = ({
     }, 500);
   };
 
-  // Step 2: Google Sign In
-  const handleGoogleSignIn = (e: React.FormEvent) => {
+  // Step 2: Google Sign In with Firebase Auth
+  const handleGoogleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMsg(null);
 
-    setTimeout(() => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      const signedEmail = (user.email || '').trim().toLowerCase();
+
+      if (signedEmail === AUTHORIZED_EMAIL.toLowerCase()) {
+        onSuccessLogin(AUTHORIZED_EMAIL);
+      } else {
+        await signOut(auth);
+        setErrorMsg(`Unauthorized Google Account: ${signedEmail}. Only ${AUTHORIZED_EMAIL} is authorized to access this private workspace.`);
+      }
+    } catch (err: any) {
+      console.warn('Firebase Google Auth:', err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        setErrorMsg('Sign-in cancelled: The Google sign-in window was closed.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setErrorMsg('Browser blocked popup window. Please allow popups or use the Password sign-in option below.');
+      } else {
+        // In iframe environments or restricted domains where popups can fail, fallback smoothly
+        setErrorMsg(`Google Auth message: ${err.message || 'Unable to open Google sign-in'}. You can also use the Password tab to enter directly.`);
+      }
+    } finally {
       setIsLoading(false);
-      // Validated against verified authorized email
-      onSuccessLogin(AUTHORIZED_EMAIL);
-    }, 600);
+    }
   };
 
   // Reset back to Step 1
@@ -164,7 +182,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({
             </h1>
             <p className="text-sm font-sans opacity-70 leading-relaxed mt-2">
               {step === 'identity' 
-                ? 'Restricted workspace. Enter your operator name and email to verify authorization before proceeding to login.'
+                ? 'Restricted workspace. Enter your operator email to verify authorization.'
                 : 'Identity verified. Complete authentication using your preferred secure method.'}
             </p>
           </div>
@@ -178,36 +196,13 @@ export const AuthGate: React.FC<AuthGateProps> = ({
           )}
 
           {/* ========================================================
-              STEP 1: IDENTITY FIRST GATE (الحجة الأولية)
+              STEP 1: IDENTITY FIRST GATE (Email Verification)
              ======================================================== */}
           {step === 'identity' && (
             <form onSubmit={handleIdentitySubmit} className="space-y-4">
               <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded text-xs font-mono mb-2 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                <span>الحجة الأولية: أدخل الاسم والبريد الإلكتروني للتحقق من الصلاحية أولاً</span>
-              </div>
-
-              {/* Full Name / Operator Name */}
-              <div>
-                <label className="block text-xs font-mono uppercase tracking-wider opacity-70 mb-1.5 flex items-center justify-between">
-                  <span>Operator Name (الاسم الكامل)</span>
-                  <span className="text-[10px] opacity-60">Required</span>
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-50" />
-                  <input
-                    type="text"
-                    required
-                    value={fullNameInput}
-                    onChange={(e) => setFullNameInput(e.target.value)}
-                    placeholder="e.g. Zak / Growth Operator"
-                    className={`w-full pl-9 pr-3 py-3 text-sm font-mono border rounded focus:outline-none ${
-                      isDarkMode 
-                        ? 'bg-[#141312] border-neutral-700 focus:border-blue-500 text-white' 
-                        : 'bg-white border-neutral-400 focus:border-black text-black'
-                    }`}
-                  />
-                </div>
+                <span>التحقق من الصلاحية: أدخل البريد الإلكتروني للمتابعة</span>
               </div>
 
               {/* Operator Email */}
@@ -221,9 +216,10 @@ export const AuthGate: React.FC<AuthGateProps> = ({
                   <input
                     type="email"
                     required
+                    autoFocus
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="e.g. operator@domain.com"
+                    placeholder="e.g. itsmezaki77@gmail.com"
                     className={`w-full pl-9 pr-3 py-3 text-sm font-mono border rounded focus:outline-none ${
                       isDarkMode 
                         ? 'bg-[#141312] border-neutral-700 focus:border-blue-500 text-white' 
@@ -243,18 +239,18 @@ export const AuthGate: React.FC<AuthGateProps> = ({
                     : 'bg-neutral-950 text-white hover:bg-neutral-800 border-neutral-950 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
                 }`}
               >
-                <span>{isLoading ? 'Verifying Identity...' : 'Verify Operator Identity (Enter ↵)'}</span>
+                <span>{isLoading ? 'Verifying Identity...' : 'Verify Operator Email (Enter ↵)'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
               <p className="text-[11px] font-mono opacity-50 text-center pt-2">
-                Sign-in methods (Google & Password) unlock only after identity verification.
+                Sign-in methods (Google & Password) unlock only after email verification.
               </p>
             </form>
           )}
 
           {/* ========================================================
-              STEP 2: AUTHENTICATION OPTIONS (الاختيارات بعد الحجة)
+              STEP 2: AUTHENTICATION OPTIONS
              ======================================================== */}
           {step === 'authenticate' && (
             <div className="space-y-5">
@@ -266,7 +262,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                   <div className="overflow-hidden">
                     <div className="text-[11px] font-mono uppercase tracking-wider font-bold text-emerald-700 dark:text-emerald-400">
-                      Operator Verified &bull; {fullNameInput || 'Zak'}
+                      Operator Verified
                     </div>
                     <div className="text-xs font-mono truncate font-medium">
                       {AUTHORIZED_EMAIL}

@@ -21,7 +21,12 @@ import {
   Copy,
   Check,
   Award,
-  Compass
+  Compass,
+  Download,
+  ShieldCheck,
+  FileJson,
+  Calendar,
+  X
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -31,6 +36,8 @@ interface DashboardViewProps {
   onOpenAddCreator: () => void;
   onOpenLogActivity: () => void;
   onOpenVaultDrawer?: (creator: Creator) => void;
+  onExportJSON?: () => void;
+  onOpenSettings?: () => void;
   isDarkMode: boolean;
 }
 
@@ -41,6 +48,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenAddCreator,
   onOpenLogActivity,
   onOpenVaultDrawer,
+  onExportJSON,
+  onOpenSettings,
   isDarkMode,
 }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -88,8 +97,124 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return acc + (c.actualMRR || c.estimatedMRR || 0);
   }, 0);
 
+  // Weekly Data Backup Notification State
+  const [lastBackupDate, setLastBackupDate] = useState<string | null>(() => {
+    return localStorage.getItem('zak_crm_last_backup_date');
+  });
+  const [isBannerDismissed, setIsBannerDismissed] = useState<boolean>(() => {
+    const dismissedWeek = localStorage.getItem('zak_crm_backup_dismissed_week');
+    const currentWeek = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+    return dismissedWeek === String(currentWeek);
+  });
+
+  // Calculate days elapsed since last backup
+  const daysElapsed = lastBackupDate
+    ? Math.floor((Date.now() - new Date(lastBackupDate).getTime()) / (24 * 60 * 60 * 1000))
+    : null;
+
+  const isWeeklyBackupDue = daysElapsed === null || daysElapsed >= 7;
+
+  const handleWeeklyExport = () => {
+    if (onExportJSON) {
+      onExportJSON();
+    }
+    const nowIso = new Date().toISOString();
+    localStorage.setItem('zak_crm_last_backup_date', nowIso);
+    setLastBackupDate(nowIso);
+  };
+
+  const handleDismissWeeklyBanner = () => {
+    const currentWeek = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+    localStorage.setItem('zak_crm_backup_dismissed_week', String(currentWeek));
+    setIsBannerDismissed(true);
+  };
+
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-6 sm:space-y-8 max-w-7xl mx-auto">
+
+      {/* Pinned Weekly Data Notification Export Banner */}
+      {!isBannerDismissed && (
+        <div className={`p-4 sm:p-5 border rounded transition-all ${
+          isWeeklyBackupDue
+            ? isDarkMode
+              ? 'bg-[#1E1912] border-amber-500/50 shadow-lg text-amber-100'
+              : 'bg-amber-50 border-amber-600 shadow-[4px_4px_0px_0px_rgba(217,119,6,1)] text-amber-950'
+            : isDarkMode
+              ? 'bg-[#141A16] border-emerald-500/40 text-emerald-100'
+              : 'bg-emerald-50 border-emerald-600 shadow-[3px_3px_0px_0px_rgba(5,150,105,1)] text-emerald-950'
+        }`}>
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className={`p-2.5 rounded shrink-0 border ${
+                isWeeklyBackupDue 
+                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-500' 
+                  : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-500'
+              }`}>
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-xs font-bold uppercase tracking-wider">
+                    {isWeeklyBackupDue
+                      ? '⚠️ WEEKLY DATA SAFEGUARD // تذكير النسخ الاحتياطي الأسبوعي'
+                      : '✓ WEEKLY DATA BACKUP SECURED'}
+                  </span>
+                  <span className="font-mono text-[10px] px-2 py-0.5 rounded border border-current opacity-80">
+                    {daysElapsed === null
+                      ? 'First Backup Recommended'
+                      : daysElapsed >= 7
+                        ? `${daysElapsed} Days Since Last Export (Backup Due)`
+                        : `Saved ${daysElapsed === 0 ? 'Today' : `${daysElapsed}d ago`}`}
+                  </span>
+                </div>
+                <p className="text-xs font-sans opacity-85 leading-relaxed max-w-3xl">
+                  {isWeeklyBackupDue
+                    ? 'Export your weekly JSON snapshot now so all your coach pipelines, DM outreach metrics, scripts, and vault credentials stay 100% protected and safe on your device.'
+                    : 'Your workspace records are safely archived. You can export a fresh JSON snapshot anytime to update your offline records.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0 flex-wrap sm:flex-nowrap">
+              <button
+                onClick={handleWeeklyExport}
+                className={`flex-1 sm:flex-initial px-4 py-2.5 rounded text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                  isWeeklyBackupDue
+                    ? isDarkMode
+                      ? 'bg-amber-500 hover:bg-amber-400 text-black border-amber-500 font-extrabold'
+                      : 'bg-amber-600 hover:bg-amber-700 text-white border-amber-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                    : isDarkMode
+                      ? 'bg-white text-black hover:bg-neutral-200 border-white'
+                      : 'bg-neutral-900 text-white hover:bg-neutral-800 border-neutral-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                }`}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export Weekly Backup (JSON)</span>
+              </button>
+
+              {onOpenSettings && (
+                <button
+                  onClick={onOpenSettings}
+                  className={`px-3 py-2.5 rounded text-xs font-mono border transition-all ${
+                    isDarkMode ? 'border-neutral-700 hover:border-neutral-500 bg-neutral-900/50' : 'border-neutral-400 hover:border-black bg-white'
+                  }`}
+                  title="Open Settings & Import"
+                >
+                  <FileJson className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              <button
+                onClick={handleDismissWeeklyBanner}
+                className="p-2 rounded border border-transparent hover:border-current opacity-60 hover:opacity-100 transition-opacity"
+                title="Dismiss for this week"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Top 4 KPI Widgets (Paper Style Cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">

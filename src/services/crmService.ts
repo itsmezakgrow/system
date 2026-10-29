@@ -185,3 +185,96 @@ export async function deleteMeetingFromFirestore(id: string) {
     handleFirestoreError(err, OperationType.DELETE, `meetings/${id}`);
   }
 }
+
+// Bulk sync all data to Firestore (ensures everything is permanently backed up in cloud)
+export async function syncAllToFirestore(data: {
+  creators: Creator[];
+  dailyLogs: DailyLog[];
+  scripts: ScriptItem[];
+  resources: ResourceItem[];
+  meetings: CalendarMeeting[];
+}): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    let count = 0;
+    // Sync creators
+    for (const c of data.creators) {
+      if (c && c.id) {
+        await setDoc(doc(db, 'creators', c.id), sanitizeData(c));
+        count++;
+      }
+    }
+    // Sync logs
+    for (const l of data.dailyLogs) {
+      if (l && l.id) {
+        await setDoc(doc(db, 'dailyLogs', l.id), sanitizeData(l));
+        count++;
+      }
+    }
+    // Sync scripts
+    for (const s of data.scripts) {
+      if (s && s.id) {
+        await setDoc(doc(db, 'scripts', s.id), sanitizeData(s));
+        count++;
+      }
+    }
+    // Sync resources
+    for (const r of data.resources) {
+      if (r && r.id) {
+        await setDoc(doc(db, 'resources', r.id), sanitizeData(r));
+        count++;
+      }
+    }
+    // Sync meetings
+    for (const m of data.meetings) {
+      if (m && m.id) {
+        await setDoc(doc(db, 'meetings', m.id), sanitizeData(m));
+        count++;
+      }
+    }
+    return { success: true, count };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    handleFirestoreError(err, OperationType.WRITE, 'bulk_sync');
+    return { success: false, count: 0, error: message };
+  }
+}
+
+// Seed initial mock data into Firestore if cloud collections are empty
+export async function seedInitialDataIfEmpty(initial: {
+  creators: Creator[];
+  dailyLogs: DailyLog[];
+  scripts: ScriptItem[];
+  resources: ResourceItem[];
+}) {
+  try {
+    const creatorsSnap = await getDocs(collection(db, 'creators'));
+    if (creatorsSnap.empty && initial.creators.length > 0) {
+      for (const c of initial.creators) {
+        await setDoc(doc(db, 'creators', c.id), sanitizeData(c));
+      }
+    }
+
+    const logsSnap = await getDocs(collection(db, 'dailyLogs'));
+    if (logsSnap.empty && initial.dailyLogs.length > 0) {
+      for (const l of initial.dailyLogs) {
+        await setDoc(doc(db, 'dailyLogs', l.id), sanitizeData(l));
+      }
+    }
+
+    const scriptsSnap = await getDocs(collection(db, 'scripts'));
+    if (scriptsSnap.empty && initial.scripts.length > 0) {
+      for (const s of initial.scripts) {
+        await setDoc(doc(db, 'scripts', s.id), sanitizeData(s));
+      }
+    }
+
+    const resSnap = await getDocs(collection(db, 'resources'));
+    if (resSnap.empty && initial.resources.length > 0) {
+      for (const r of initial.resources) {
+        await setDoc(doc(db, 'resources', r.id), sanitizeData(r));
+      }
+    }
+  } catch (err) {
+    console.warn('Initial cloud seed attempt:', err);
+  }
+}

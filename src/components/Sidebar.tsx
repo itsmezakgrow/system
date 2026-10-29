@@ -12,7 +12,9 @@ import {
   ChevronRight, 
   LogOut,
   Sun,
-  Moon
+  Moon,
+  Settings,
+  X
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -24,6 +26,9 @@ interface SidebarProps {
   onToggleTheme: () => void;
   onSignOut: () => void;
   creatorCount: number;
+  isMobileOpen?: boolean;
+  setIsMobileOpen?: (open: boolean) => void;
+  onOpenSettings?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -35,6 +40,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleTheme,
   onSignOut,
   creatorCount,
+  isMobileOpen = false,
+  setIsMobileOpen,
+  onOpenSettings,
 }) => {
   const navItems: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 className="w-4 h-4" /> },
@@ -47,77 +55,112 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside 
-      className={`relative flex flex-col transition-all duration-300 z-30 select-none border-r ${
-        isCollapsed ? 'w-18' : 'w-64'
-      } ${
-        isDarkMode 
-          ? 'bg-[#181716] border-neutral-800 text-[#F4F2ED]' 
-          : 'bg-[#FAF8F5] border-neutral-300 text-[#111111]'
-      }`}
-    >
-      {/* Floating Edge Toggle Button (Prevents any overlap with logo) */}
-      <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className={`absolute -right-3 top-5 w-6 h-6 rounded-full border flex items-center justify-center transition-all z-40 shadow-sm hover:scale-110 cursor-pointer ${
-          isDarkMode
-            ? 'bg-[#1F1E1C] border-neutral-700 text-neutral-300 hover:text-white hover:border-neutral-500'
-            : 'bg-white border-neutral-400 text-neutral-700 hover:text-black hover:border-neutral-900 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
-        }`}
-        title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-      >
-        {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-      </button>
+    <>
+      {/* Mobile Drawer Backdrop */}
+      {isMobileOpen && (
+        <div 
+          onClick={() => setIsMobileOpen?.(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden transition-opacity"
+        />
+      )}
 
-      {/* Brand Header */}
-      <div className={`flex items-center h-16 border-b px-3 ${
-        isCollapsed ? 'justify-center' : 'justify-start gap-3 px-4'
-      } ${
-        isDarkMode ? 'border-neutral-800' : 'border-neutral-300'
-      }`}>
+      <aside 
+        className={`fixed inset-y-0 left-0 z-50 md:static md:z-30 flex flex-col transition-all duration-300 select-none border-r ${
+          isMobileOpen 
+            ? 'translate-x-0 w-72 max-w-[85vw] shadow-2xl' 
+            : '-translate-x-full md:translate-x-0'
+        } ${
+          isCollapsed ? 'md:w-18' : 'md:w-64'
+        } ${
+          isDarkMode 
+            ? 'bg-[#181716] border-neutral-800 text-[#F4F2ED]' 
+            : 'bg-[#FAF8F5] border-neutral-300 text-[#111111]'
+        }`}
+      >
+        {/* Floating Edge Toggle Button for Desktop */}
         <button
-          onClick={() => isCollapsed && setIsCollapsed(false)}
-          className={`w-9 h-9 border border-current flex items-center justify-center font-serif font-bold text-lg bg-black text-white shrink-0 rounded transition-transform ${
-            isCollapsed ? 'hover:scale-105 cursor-pointer' : ''
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className={`hidden md:flex absolute -right-3 top-5 w-6 h-6 rounded-full border items-center justify-center transition-all z-40 shadow-sm hover:scale-110 cursor-pointer ${
+            isDarkMode
+              ? 'bg-[#1F1E1C] border-neutral-700 text-neutral-300 hover:text-white hover:border-neutral-500'
+              : 'bg-white border-neutral-400 text-neutral-700 hover:text-black hover:border-neutral-900 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
           }`}
-          title="ZAK / Growth Operator"
+          title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
         >
-          Z
+          {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
         </button>
 
-        {!isCollapsed && (
-          <div className="flex flex-col truncate">
-            <span className="font-mono font-bold text-xs uppercase tracking-wider truncate">
-              ZAK / GROWTH OP
-            </span>
-            <span className="text-[10px] font-mono text-blue-500 font-semibold tracking-wide">
-              50/50 REVENUE SHARE
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Navigation Links */}
-      <nav className={`flex-1 py-6 space-y-2 overflow-y-auto ${
-        isCollapsed ? 'px-2 flex flex-col items-center' : 'px-3'
-      }`}>
-        {!isCollapsed && (
-          <div className="px-3 pb-2 font-mono text-[10px] font-semibold tracking-widest uppercase opacity-50">
-            // OPERATOR MODULES
-          </div>
-        )}
-        {navItems.map((item) => {
-          const isActive = currentTab === item.id;
-          return (
+        {/* Brand Header */}
+        <div className={`flex items-center h-16 border-b px-3 ${
+          isCollapsed ? 'justify-center' : 'justify-between px-4'
+        } ${
+          isDarkMode ? 'border-neutral-800' : 'border-neutral-300'
+        }`}>
+          <div className="flex items-center gap-3">
             <button
-              key={item.id}
-              onClick={() => setCurrentTab(item.id)}
-              className={`font-mono text-xs transition-all group relative border ${
-                isCollapsed
-                  ? 'w-11 h-11 flex items-center justify-center rounded'
-                  : 'w-full flex items-center gap-3 px-3 py-2.5 rounded'
-              } ${
-                isActive
+              onClick={() => isCollapsed && setIsCollapsed(false)}
+              className={`w-9 h-9 border border-current flex items-center justify-center font-serif font-bold text-lg bg-black text-white shrink-0 rounded transition-transform ${
+                isCollapsed ? 'hover:scale-105 cursor-pointer' : ''
+              }`}
+              title="ZAK / Growth Operator"
+            >
+              Z
+            </button>
+
+            {(!isCollapsed || isMobileOpen) && (
+              <div className="flex flex-col truncate">
+                <span className="font-mono font-bold text-xs uppercase tracking-wider truncate">
+                  ZAK / GROWTH OP
+                </span>
+                <span className="text-[10px] font-mono text-blue-500 font-semibold tracking-wide">
+                  50/50 REVENUE SHARE
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Close button for Mobile Drawer */}
+          {isMobileOpen && (
+            <button
+              onClick={() => setIsMobileOpen?.(false)}
+              className={`md:hidden p-1.5 rounded border transition-colors ${
+                isDarkMode 
+                  ? 'border-neutral-700 hover:border-neutral-500 text-neutral-300' 
+                  : 'border-neutral-300 hover:border-black text-neutral-700'
+              }`}
+              title="Close menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Navigation Links */}
+        <nav className={`flex-1 py-4 sm:py-6 space-y-1.5 sm:space-y-2 overflow-y-auto ${
+          isCollapsed && !isMobileOpen ? 'px-2 flex flex-col items-center' : 'px-3'
+        }`}>
+          {(!isCollapsed || isMobileOpen) && (
+            <div className="px-3 pb-2 font-mono text-[10px] font-semibold tracking-widest uppercase opacity-50">
+              // OPERATOR MODULES
+            </div>
+          )}
+          {navItems.map((item) => {
+            const isActive = currentTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setCurrentTab(item.id);
+                  if (isMobileOpen) {
+                    setIsMobileOpen?.(false);
+                  }
+                }}
+                className={`font-mono text-xs transition-all group relative border ${
+                  isCollapsed && !isMobileOpen
+                    ? 'w-11 h-11 flex items-center justify-center rounded'
+                    : 'w-full flex items-center gap-3 px-3 py-2.5 rounded'
+                } ${
+                  isActive
                   ? isDarkMode
                     ? 'bg-white text-black border-white font-bold shadow-sm'
                     : 'bg-neutral-950 text-white border-neutral-950 font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
@@ -204,20 +247,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
         </div>
-        {!isCollapsed && (
-          <button
-            onClick={onSignOut}
-            className={`p-1.5 rounded border transition-colors ${
-              isDarkMode 
-                ? 'border-neutral-700 hover:border-red-500 text-neutral-400 hover:text-red-400' 
-                : 'border-neutral-300 hover:border-red-600 text-neutral-600 hover:text-red-600'
-            }`}
-            title="Sign Out of Workspace"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-          </button>
+
+        {(!isCollapsed || isMobileOpen) && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            {onOpenSettings && (
+              <button
+                onClick={() => {
+                  onOpenSettings();
+                  if (isMobileOpen) {
+                    setIsMobileOpen?.(false);
+                  }
+                }}
+                className={`p-1.5 rounded border transition-colors ${
+                  isDarkMode 
+                    ? 'border-neutral-700 hover:border-neutral-500 text-neutral-400 hover:text-white' 
+                    : 'border-neutral-300 hover:border-neutral-900 text-neutral-600 hover:text-black'
+                }`}
+                title="Settings & JSON Backup"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              onClick={onSignOut}
+              className={`p-1.5 rounded border transition-colors ${
+                isDarkMode 
+                  ? 'border-neutral-700 hover:border-red-500 text-neutral-400 hover:text-red-400' 
+                  : 'border-neutral-300 hover:border-red-600 text-neutral-600 hover:text-red-600'
+              }`}
+              title="Sign Out of Workspace"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
         )}
       </div>
     </aside>
+  </>
   );
 };

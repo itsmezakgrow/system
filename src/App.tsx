@@ -21,8 +21,10 @@ import {
   deleteResourceFromFirestore,
   subscribeToMeetings,
   saveMeetingToFirestore,
-  deleteMeetingFromFirestore
+  deleteMeetingFromFirestore,
+  seedInitialDataIfEmpty
 } from './services/crmService';
+import { auth, signOut, onAuthStateChanged } from './firebase';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
@@ -38,6 +40,7 @@ import { ArchiveCreatorModal } from './components/ArchiveCreatorModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { LogActivityModal } from './components/LogActivityModal';
 import { ClientVaultDrawer } from './components/ClientVaultDrawer';
+import { SettingsModal } from './components/SettingsModal';
 import { AuthGate } from './components/AuthGate';
 import { CheckCircle2, Download, Upload } from 'lucide-react';
 
@@ -92,6 +95,8 @@ export default function App() {
   const [archivingCreator, setArchivingCreator] = useState<Creator | null>(null);
   const [vaultDrawerCreator, setVaultDrawerCreator] = useState<Creator | null>(null);
   const [isLogActivityOpen, setIsLogActivityOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const activeVaultDrawerCreator = vaultDrawerCreator
@@ -213,6 +218,29 @@ export default function App() {
     };
   }, [currentUserEmail]);
 
+  // Real-time Firebase Auth listener
+  useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (user && user.email?.toLowerCase() === AUTHORIZED_EMAIL.toLowerCase()) {
+        setCurrentUserEmail(user.email);
+        localStorage.setItem('zak_crm_auth_email', user.email);
+      }
+    });
+    return () => unsubAuth();
+  }, []);
+
+  // Guarantee all mock/initial data is seeded to Firebase Cloud if database is empty
+  useEffect(() => {
+    if (currentUserEmail) {
+      seedInitialDataIfEmpty({
+        creators,
+        dailyLogs,
+        scripts,
+        resources,
+      });
+    }
+  }, [currentUserEmail]);
+
   // Auth Handlers
   const handleSuccessLogin = (email: string) => {
     localStorage.setItem('zak_crm_auth_email', email);
@@ -220,10 +248,69 @@ export default function App() {
     showToast(`Welcome back! Session verified.`);
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.warn('Sign out:', err);
+    }
     localStorage.removeItem('zak_crm_auth_email');
     setCurrentUserEmail(null);
     showToast('Signed out of workspace.');
+  };
+
+  // Full Workspace JSON Export
+  const handleExportWorkspaceJSON = () => {
+    const timestamp = new Date().toISOString();
+    const dateFormatted = timestamp.split('T')[0];
+    const payload = {
+      appName: 'ZAK / Growth Operator CRM',
+      exportTimestamp: timestamp,
+      exportVersion: '1.0',
+      userEmail: currentUserEmail || AUTHORIZED_EMAIL,
+      stats: {
+        creatorsCount: creators.length,
+        dailyLogsCount: dailyLogs.length,
+        scriptsCount: scripts.length,
+        resourcesCount: resources.length,
+        meetingsCount: meetings.length,
+      },
+      data: {
+        creators,
+        dailyLogs,
+        scripts,
+        resources,
+        meetings,
+      },
+    };
+
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(payload, null, 2)
+    )}`;
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', jsonString);
+    downloadAnchor.setAttribute('download', `zak-crm-backup-${dateFormatted}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+
+    localStorage.setItem('zak_crm_last_backup_date', timestamp);
+    showToast('Weekly workspace backup exported successfully as JSON!');
+  };
+
+  // Full Workspace JSON Import
+  const handleImportWorkspaceData = (imported: {
+    creators: Creator[];
+    dailyLogs: DailyLog[];
+    scripts: ScriptItem[];
+    resources: ResourceItem[];
+    meetings: CalendarMeeting[];
+  }) => {
+    setCreators(imported.creators);
+    setDailyLogs(imported.dailyLogs);
+    setScripts(imported.scripts);
+    setResources(imported.resources);
+    setMeetings(imported.meetings);
   };
 
   // Creator Handlers (Add, Edit, Update, Delete, Archive, Restore)
@@ -426,6 +513,9 @@ export default function App() {
         onToggleTheme={() => setIsDarkMode(!isDarkMode)}
         onSignOut={requestConfirmSignOut}
         creatorCount={creators.filter(c => !c.isArchived).length}
+        isMobileOpen={isMobileSidebarOpen}
+        setIsMobileOpen={setIsMobileSidebarOpen}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -440,10 +530,12 @@ export default function App() {
           onToggleTheme={() => setIsDarkMode(!isDarkMode)}
           onSignOut={requestConfirmSignOut}
           userEmail={currentUserEmail}
+          onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
 
         {/* Viewport content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-8">
           {currentTab === 'dashboard' && (
             <DashboardView
               creators={creators}
@@ -452,6 +544,8 @@ export default function App() {
               onOpenAddCreator={() => setIsAddCreatorOpen(true)}
               onOpenLogActivity={() => setIsLogActivityOpen(true)}
               onOpenVaultDrawer={(c) => setVaultDrawerCreator(c)}
+              onExportJSON={handleExportWorkspaceJSON}
+              onOpenSettings={() => setIsSettingsOpen(true)}
               isDarkMode={isDarkMode}
             />
           )}
@@ -584,6 +678,21 @@ export default function App() {
         confirmText={confirmModal.confirmText}
         variant={confirmModal.variant}
         isDarkMode={isDarkMode}
+      />
+
+      {/* Settings & Data Safeguards Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        isDarkMode={isDarkMode}
+        creators={creators}
+        dailyLogs={dailyLogs}
+        scripts={scripts}
+        resources={resources}
+        meetings={meetings}
+        onImportWorkspaceData={handleImportWorkspaceData}
+        userEmail={currentUserEmail}
+        onToast={showToast}
       />
 
       {/* Toast Notification */}

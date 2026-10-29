@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Plus, Bell, Sparkles, Sun, Moon, CheckCircle2, ShieldCheck, LogOut } from 'lucide-react';
+import { Search, Plus, Bell, Sparkles, Sun, Moon, CheckCircle2, ShieldCheck, LogOut, Menu, Settings } from 'lucide-react';
 
 interface HeaderProps {
   searchQuery: string;
@@ -11,6 +11,8 @@ interface HeaderProps {
   onToggleTheme: () => void;
   onSignOut: () => void;
   userEmail: string;
+  onOpenMobileMenu?: () => void;
+  onOpenSettings: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,6 +25,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   onSignOut,
   userEmail,
+  onOpenMobileMenu,
+  onOpenSettings,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -32,15 +36,29 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   return (
-    <header className={`h-16 border-b px-4 md:px-8 flex items-center justify-between gap-4 sticky top-0 z-20 transition-colors ${
+    <header className={`h-16 border-b px-3 sm:px-4 md:px-8 flex items-center justify-between gap-2 sm:gap-4 sticky top-0 z-20 transition-colors ${
       isDarkMode ? 'bg-[#181716] border-neutral-800 text-[#F4F2ED]' : 'bg-[#FAF8F5] border-neutral-300 text-[#111111]'
     }`}>
-      {/* Left: Section Title with Paper Dossier badge */}
-      <div className="flex items-center gap-3">
-        <h1 className="font-serif text-lg md:text-xl font-bold tracking-tight">
+      {/* Left: Section Title with Mobile Menu button */}
+      <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
+        {onOpenMobileMenu && (
+          <button
+            onClick={onOpenMobileMenu}
+            className={`md:hidden p-2 rounded border transition-colors shrink-0 ${
+              isDarkMode 
+                ? 'bg-[#1F1E1C] border-neutral-700 text-neutral-300' 
+                : 'bg-white border-neutral-400 text-neutral-800 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+            }`}
+            title="Open Navigation Menu"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+        )}
+
+        <h1 className="font-serif text-base sm:text-lg md:text-xl font-bold tracking-tight truncate">
           {activeTabTitle}
         </h1>
-        <span className="hidden lg:inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border rounded border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10">
+        <span className="hidden lg:inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider px-2 py-0.5 border rounded border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
           FIRESTORE CLOUD
         </span>
@@ -99,14 +117,29 @@ export const Header: React.FC<HeaderProps> = ({
 
         <button
           onClick={onOpenAddCreator}
-          className={`flex items-center gap-1.5 px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider border transition-all ${
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider border transition-all ${
             isDarkMode
               ? 'bg-white text-black border-white hover:bg-neutral-200'
               : 'bg-neutral-950 text-white border-neutral-950 hover:bg-neutral-800 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
           }`}
+          title="Add new creator or coach"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>Add Creator</span>
+          <span className="hidden sm:inline">Add Creator</span>
+          <span className="sm:hidden">Add</span>
+        </button>
+
+        {/* Settings & Backup Modal Trigger */}
+        <button
+          onClick={onOpenSettings}
+          className={`p-2 rounded border transition-all ${
+            isDarkMode 
+              ? 'bg-[#1F1E1C] border-neutral-700 hover:border-neutral-500 text-neutral-300 hover:text-white' 
+              : 'bg-white border-neutral-400 hover:border-neutral-900 text-neutral-800 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+          }`}
+          title="Workspace Settings, JSON Export/Import & Firebase Cloud"
+        >
+          <Settings className="w-4 h-4" />
         </button>
 
         {/* Notifications */}
