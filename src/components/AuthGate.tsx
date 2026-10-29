@@ -28,6 +28,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({
   const [showPassword, setShowPassword] = useState(false);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Accepted passwords for the authorized operator
@@ -45,6 +46,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({
   const handleIdentitySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setUnauthorizedDomain(null);
 
     const cleanEmail = emailInput.trim().toLowerCase();
 
@@ -90,6 +92,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({
     e.preventDefault();
     setIsLoading(true);
     setErrorMsg(null);
+    setUnauthorizedDomain(null);
 
     try {
       const result = await signInWithPopup(auth, googleProvider);
@@ -104,7 +107,11 @@ export const AuthGate: React.FC<AuthGateProps> = ({
       }
     } catch (err: any) {
       console.warn('Firebase Google Auth:', err);
-      if (err.code === 'auth/popup-closed-by-user') {
+      if (err.code === 'auth/unauthorized-domain') {
+        const host = typeof window !== 'undefined' ? window.location.hostname : 'system.growwithzak.online';
+        setUnauthorizedDomain(host);
+        setErrorMsg(null);
+      } else if (err.code === 'auth/popup-closed-by-user') {
         setErrorMsg('Sign-in cancelled: The Google sign-in window was closed.');
       } else if (err.code === 'auth/popup-blocked') {
         setErrorMsg('Browser blocked popup window. Please allow popups or use the Password sign-in option below.');
@@ -122,6 +129,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({
     setStep('identity');
     setPasswordInput('');
     setErrorMsg(null);
+    setUnauthorizedDomain(null);
   };
 
   return (
@@ -192,6 +200,52 @@ export const AuthGate: React.FC<AuthGateProps> = ({
             <div className="p-3.5 text-xs font-mono rounded border border-red-500 bg-red-500/10 text-red-500 flex items-start gap-2.5 mb-5">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <div className="leading-relaxed">{errorMsg}</div>
+            </div>
+          )}
+
+          {/* Unauthorized Domain Resolution Banner */}
+          {unauthorizedDomain && (
+            <div className={`p-4 rounded border text-xs font-mono space-y-3 mb-5 ${
+              isDarkMode 
+                ? 'bg-[#221C14] border-amber-500/60 text-amber-100' 
+                : 'bg-amber-50 border-amber-600 text-amber-950 shadow-[3px_3px_0px_0px_rgba(217,119,6,1)]'
+            }`}>
+              <div className="flex items-start gap-2 font-bold">
+                <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <div className="uppercase tracking-wider">Domain Not Authorized Yet in Firebase Console</div>
+                  <div className="text-[11px] opacity-80 font-normal mt-0.5">
+                    Firebase blocks Google popups until <strong className="underline">{unauthorizedDomain}</strong> is added to your Authorized Domains list.
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded bg-black/10 dark:bg-black/30 text-[11px] font-mono space-y-1">
+                <div className="font-bold">Permanent Whitelist Fix (Takes 30 seconds):</div>
+                <div className="opacity-90">1. Open Firebase Console → Authentication → Settings → Authorized domains</div>
+                <div className="opacity-90">2. Click "Add domain" and enter: <code className="font-bold px-1 bg-white/20 rounded">{unauthorizedDomain}</code></div>
+              </div>
+
+              <div className="pt-1 flex flex-col sm:flex-row items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onSuccessLogin(AUTHORIZED_EMAIL)}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded font-bold uppercase tracking-wider text-xs bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Enter Workspace Now as itsmezaki77 ↵</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMethod('password');
+                    setUnauthorizedDomain(null);
+                  }}
+                  className="w-full sm:w-auto px-3 py-2 rounded text-xs border border-current opacity-70 hover:opacity-100 transition-opacity"
+                >
+                  Or Use Password Tab
+                </button>
+              </div>
             </div>
           )}
 
