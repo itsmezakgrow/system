@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "creator": {
+      "title": "Creator",
+      "description": "A coach or creator profile in the Growth Operator pipeline or benchmark library.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "handle": { "type": "string" },
+        "platform": { "type": "string" },
+        "profileUrl": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "followers": { "type": "number" },
+        "engagementRate": { "type": "string" },
+        "niche": { "type": "string" },
+        "coachCategory": { "type": "string" },
+        "status": { "type": "string" },
+        "notes": { "type": "string" },
+        "lastContactDate": { "type": "string" },
+        "email": { "type": "string" },
+        "estimatedMRR": { "type": "number" },
+        "actualMRR": { "type": "number" },
+        "touchpoints": { "type": "array" },
+        "vault": { "type": "object" },
+        "isArchived": { "type": "boolean" },
+        "archiveReason": { "type": "string" }
+      },
+      "required": ["id", "name", "handle", "platform", "followers", "niche", "status"]
+    },
+    "dailyLog": {
+      "title": "DailyLog",
+      "description": "Daily logged outreach actions and revenue metrics.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "dmsSent": { "type": "number" },
+        "followUpsSent": { "type": "number" },
+        "repliesReceived": { "type": "number" },
+        "loomsRecorded": { "type": "number" },
+        "callsBooked": { "type": "number" },
+        "revenueGenerated": { "type": "number" },
+        "attributedCoachName": { "type": "string" }
+      },
+      "required": ["id", "date", "dmsSent", "repliesReceived"]
+    },
+    "script": {
+      "title": "Script",
+      "description": "Outreach template, VSL pitch, or objection handling script.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "content": { "type": "string" },
+        "successRate": { "type": "string" }
+      },
+      "required": ["id", "title", "category", "content"]
+    },
+    "resource": {
+      "title": "Resource",
+      "description": "Secure link, credential, or brand asset item.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "url": { "type": "string" },
+        "usernameOrEmail": { "type": "string" },
+        "secretNote": { "type": "string" },
+        "iconName": { "type": "string" }
+      },
+      "required": ["id", "title", "category", "url"]
+    },
+    "meeting": {
+      "title": "Meeting",
+      "description": "Scheduled call or strategy meeting with coach.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "title", "date", "time", "status"]
+    }
+  },
+  "firestore": {
+    "/creators/{creatorId}": {
+      "schema": "creator",
+      "description": "Collection of prospective coaches, active partners, and benchmark profiles."
+    },
+    "/dailyLogs/{logId}": {
+      "schema": "dailyLog",
+      "description": "Collection of daily KPI outbound performance logs."
+    },
+    "/scripts/{scriptId}": {
+      "schema": "script",
+      "description": "Collection of scripts and SOP templates."
+    },
+    "/resources/{resourceId}": {
+      "schema": "resource",
+      "description": "Collection of links, login credentials, and brand assets."
+    },
+    "/meetings/{meetingId}": {
+      "schema": "meeting",
+      "description": "Collection of scheduled calls and strategy meetings."
+    }
+  }
+}

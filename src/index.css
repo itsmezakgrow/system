@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-serif: 'Newsreader', serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+.font-serif {
+  font-family: 'Newsreader', serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.font-sans {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* Paper textured styling accents */
+.paper-highlight-blue {
+  background-color: #2563EB;
+  color: #FFFFFF;
+  padding: 0 0.25rem;
+  display: inline-block;
+  line-height: 1.1;
+}
+
+.paper-highlight-yellow {
+  background-color: #FEF08A;
+  color: #854D0E;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid #FACC15;
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+}
+
+/* Sharp dossier borders */
+.paper-card {
+  transition: all 0.15s ease-in-out;
+}

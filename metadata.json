@@ -1,0 +1,8 @@
+{
+  "name": "ZAK / Growth Operator CRM",
+  "description": "Custom Paper-Style Growth Operator CRM Dashboard for tracking outreach, deals, daily KPIs, and resource library.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

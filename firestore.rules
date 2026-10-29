@@ -1,0 +1,54 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Connection test document
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Creators collection (Coaches, partners, benchmarks)
+    match /creators/{creatorId} {
+      allow list: if true;
+      allow get, delete: if isValidId(creatorId);
+      allow create, update: if isValidId(creatorId);
+    }
+
+    // Daily Logs collection
+    match /dailyLogs/{logId} {
+      allow list: if true;
+      allow get, delete: if isValidId(logId);
+      allow create, update: if isValidId(logId);
+    }
+
+    // Scripts & SOPs collection
+    match /scripts/{scriptId} {
+      allow list: if true;
+      allow get, delete: if isValidId(scriptId);
+      allow create, update: if isValidId(scriptId);
+    }
+
+    // Vault resources collection
+    match /resources/{resourceId} {
+      allow list: if true;
+      allow get, delete: if isValidId(resourceId);
+      allow create, update: if isValidId(resourceId);
+    }
+
+    // Meetings & Calendar collection
+    match /meetings/{meetingId} {
+      allow list: if true;
+      allow get, delete: if isValidId(meetingId);
+      allow create, update: if isValidId(meetingId);
+    }
+
+    // Default deny all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
