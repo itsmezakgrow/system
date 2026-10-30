@@ -50,3 +50,36 @@
 .paper-card {
   transition: all 0.15s ease-in-out;
 }
+
+/* Print CSS Media Rules */
+@media print {
+  /* Hide main web app UI when printing */
+  body > *:not(#zak-print-dossier-root) {
+    display: none !important;
+  }
+
+  #zak-print-dossier-root {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 12px !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+}
+
+@media screen {
+  #zak-print-dossier-root {
+    display: none !important;
+  }
+}

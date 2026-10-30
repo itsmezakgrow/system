@@ -18,10 +18,22 @@ import {
   GripVertical,
   Archive,
   RotateCcw,
-  Lock
+  Lock,
+  Flame,
+  Star,
+  Send,
+  LayoutGrid,
+  Rows,
+  Download,
+  Printer,
+  CheckSquare,
+  Square,
+  FileText,
+  X
 } from 'lucide-react';
 import { ClientVaultDrawer } from './ClientVaultDrawer';
-
+import { exportCreatorsToCSV, printCreatorsDossier } from '../utils/exportHelpers';
+import { HitlistExportModal } from './HitlistExportModal';
 
 interface PipelineViewProps {
   creators: Creator[];
@@ -30,6 +42,7 @@ interface PipelineViewProps {
   onOpenAddCreator: () => void;
   onOpenEditCreator: (creator: Creator) => void;
   onOpenArchiveModal: (creator: Creator) => void;
+  onOpenBulkArchive?: (creators: Creator[]) => void;
   onRestoreCreator: (creatorId: string) => void;
   onUpdateCreator?: (creator: Creator) => void;
   onOpenVaultDrawer?: (creator: Creator) => void;
@@ -45,6 +58,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
   onOpenAddCreator,
   onOpenEditCreator,
   onOpenArchiveModal,
+  onOpenBulkArchive,
   onRestoreCreator,
   onUpdateCreator,
   onOpenVaultDrawer,
@@ -56,8 +70,21 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedNiche, setSelectedNiche] = useState<string>('All');
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
+  const [selectedScore, setSelectedScore] = useState<string>('All');
+  const [selectedFollowerRange, setSelectedFollowerRange] = useState<string>('All');
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [selectedVaultCreator, setSelectedVaultCreator] = useState<Creator | null>(null);
+
+  // Multi-Selection State for Hitlist Leads
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Export Modal State
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportTargetCreators, setExportTargetCreators] = useState<Creator[]>([]);
+
+  // Kanban display layout: 'grid' (stacked 3x2 rows - no horizontal scroll), 'stack' (vertical list), or 'horizontal' (classic)
+  const [kanbanLayout, setKanbanLayout] = useState<'grid' | 'stack' | 'horizontal'>('grid');
+  const [kanbanStageFilter, setKanbanStageFilter] = useState<string>('All');
 
   const activeVaultCreator = selectedVaultCreator
     ? creators.find(c => c.id === selectedVaultCreator.id) || selectedVaultCreator
@@ -139,6 +166,9 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
       creator.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       creator.handle.toLowerCase().includes(searchQuery.toLowerCase()) ||
       creator.niche.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (creator.subNiche && creator.subNiche.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (creator.bioFlaw && creator.bioFlaw.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (creator.loomHook && creator.loomHook.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (creator.notes && creator.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (creator.archiveReason && creator.archiveReason.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (creator.coachCategory && creator.coachCategory.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -146,13 +176,110 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
     const matchesNiche = selectedNiche === 'All' || creator.niche === selectedNiche;
     const matchesStatus = selectedStatus === 'All' || creator.status === selectedStatus;
 
-    return matchesSearch && matchesNiche && matchesStatus;
+    // Score Filter
+    let matchesScore = true;
+    const sc = creator.score || 0;
+    if (selectedScore === '9-10') matchesScore = sc >= 9;
+    else if (selectedScore === '7-8') matchesScore = sc >= 7 && sc <= 8;
+    else if (selectedScore === '5-6') matchesScore = sc >= 5 && sc <= 6;
+    else if (selectedScore === '1-4') matchesScore = sc >= 1 && sc <= 4;
+
+    // Followers Range Filter
+    let matchesFollowers = true;
+    const f = creator.followers || 0;
+    if (selectedFollowerRange === '<10k') matchesFollowers = f < 10000;
+    else if (selectedFollowerRange === '10k-50k') matchesFollowers = f >= 10000 && f <= 50000;
+    else if (selectedFollowerRange === '50k-100k') matchesFollowers = f > 50000 && f <= 100000;
+    else if (selectedFollowerRange === '100k+') matchesFollowers = f > 100000;
+
+    return matchesSearch && matchesNiche && matchesStatus && matchesScore && matchesFollowers;
   });
+
+  const getScoreBadge = (score?: number) => {
+    const s = score || 5;
+    if (s >= 9) {
+      return (
+        <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/15 text-amber-500 inline-flex items-center gap-0.5" title="Score out of 10">
+          <Flame className="w-2.5 h-2.5 fill-amber-500" />
+          <span>{s}/10</span>
+        </span>
+      );
+    }
+    if (s >= 7) {
+      return (
+        <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border border-blue-500/40 bg-blue-500/15 text-blue-500 inline-flex items-center gap-0.5" title="Score out of 10">
+          <Star className="w-2.5 h-2.5 fill-blue-500" />
+          <span>{s}/10</span>
+        </span>
+      );
+    }
+    return (
+      <span className="font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded border border-neutral-400/30 opacity-70" title="Score out of 10">
+        <span>{s}/10</span>
+      </span>
+    );
+  };
 
   const formatFollowers = (count: number) => {
     if (count >= 1000000) return (count / 1000000).toFixed(1) + 'M';
     if (count >= 1000) return (count / 1000).toFixed(0) + 'K';
     return count.toString();
+  };
+
+  // Multi-Selection State Computations
+  const selectedCreators = creators.filter(c => selectedIds.includes(c.id));
+  const isAllSelected = filteredCreators.length > 0 && filteredCreators.every(c => selectedIds.includes(c.id));
+  const isSomeSelected = filteredCreators.some(c => selectedIds.includes(c.id)) && !isAllSelected;
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      const filteredIdSet = new Set(filteredCreators.map(c => c.id));
+      setSelectedIds(prev => prev.filter(id => !filteredIdSet.has(id)));
+    } else {
+      const newIds = new Set([...selectedIds, ...filteredCreators.map(c => c.id)]);
+      setSelectedIds(Array.from(newIds));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+  };
+
+  const handleOpenExport = (customList?: Creator[]) => {
+    const listToExport = customList && customList.length > 0
+      ? customList
+      : (selectedCreators.length > 0 ? selectedCreators : filteredCreators);
+    setExportTargetCreators(listToExport);
+    setIsExportModalOpen(true);
+  };
+
+  const handleDirectCSV = (customList?: Creator[]) => {
+    const listToExport = customList && customList.length > 0
+      ? customList
+      : (selectedCreators.length > 0 ? selectedCreators : filteredCreators);
+    exportCreatorsToCSV(listToExport);
+  };
+
+  const handleDirectPDF = (customList?: Creator[]) => {
+    const listToExport = customList && customList.length > 0
+      ? customList
+      : (selectedCreators.length > 0 ? selectedCreators : filteredCreators);
+    printCreatorsDossier(listToExport);
+  };
+
+  const handleTriggerBulkArchive = () => {
+    if (selectedCreators.length === 0) return;
+    if (onOpenBulkArchive) {
+      onOpenBulkArchive(selectedCreators);
+    } else {
+      selectedCreators.forEach(c => onOpenArchiveModal(c));
+    }
   };
 
   // Stats
@@ -238,7 +365,36 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
           })}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Hitlist Export Buttons */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => handleDirectCSV()}
+              className={`flex items-center gap-1 px-2.5 py-1.5 font-mono text-xs rounded border transition-all ${
+                isDarkMode 
+                  ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700' 
+                  : 'bg-white hover:bg-neutral-100 text-black border-neutral-800 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+              }`}
+              title={selectedIds.length > 0 ? `Export ${selectedIds.length} Selected to CSV` : `Export all ${filteredCreators.length} filtered coaches to CSV`}
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-500" />
+              <span>CSV {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}</span>
+            </button>
+
+            <button
+              onClick={() => handleOpenExport()}
+              className={`flex items-center gap-1 px-2.5 py-1.5 font-mono text-xs rounded border transition-all ${
+                isDarkMode 
+                  ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700' 
+                  : 'bg-white hover:bg-neutral-100 text-black border-neutral-800 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+              }`}
+              title={selectedIds.length > 0 ? `Export ${selectedIds.length} Selected to PDF / Print` : `Export all ${filteredCreators.length} filtered coaches to PDF / Print`}
+            >
+              <Printer className="w-3.5 h-3.5 text-blue-500" />
+              <span>PDF {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}</span>
+            </button>
+          </div>
+
           {/* View Toggle */}
           <div className="flex items-center gap-1 border p-1 rounded font-mono text-xs border-current">
             <button
@@ -271,6 +427,115 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
         </div>
       </div>
 
+      {/* Precision Operator Filters (Score & Follower Range) */}
+      <div className={`p-3 border flex flex-wrap items-center justify-between gap-3 text-xs font-mono transition-all ${
+        isDarkMode ? 'bg-[#181716] border-neutral-800' : 'bg-[#FAF8F5] border-neutral-300'
+      }`}>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Score Filter */}
+          <div className="flex items-center gap-1.5">
+            <span className="opacity-60 text-[10px] uppercase flex items-center gap-1">
+              <Flame className="w-3 h-3 text-amber-500" />
+              <span>Score:</span>
+            </span>
+            <select
+              value={selectedScore}
+              onChange={(e) => setSelectedScore(e.target.value)}
+              className={`px-2 py-1 border rounded text-xs focus:outline-none ${
+                isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+              }`}
+            >
+              <option value="All">All Scores (الكل)</option>
+              <option value="9-10">9-10 Elite (أولوية قصوى 🔥)</option>
+              <option value="7-8">7-8 High Potential (إمكانية عالية ⭐)</option>
+              <option value="5-6">5-6 Average (متوسط)</option>
+              <option value="1-4">1-4 Low (منخفض)</option>
+            </select>
+          </div>
+
+          {/* Follower Range Filter */}
+          <div className="flex items-center gap-1.5">
+            <span className="opacity-60 text-[10px] uppercase flex items-center gap-1">
+              <Users className="w-3 h-3 text-blue-500" />
+              <span>Followers:</span>
+            </span>
+            <select
+              value={selectedFollowerRange}
+              onChange={(e) => setSelectedFollowerRange(e.target.value)}
+              className={`px-2 py-1 border rounded text-xs focus:outline-none ${
+                isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+              }`}
+            >
+              <option value="All">All Ranges (جميع المتابعين)</option>
+              <option value="<10k">&lt; 10K Followers (&lt;10 آلاف)</option>
+              <option value="10k-50k">10K - 50K Followers (10-50 ألف)</option>
+              <option value="50k-100k">50K - 100K Followers (50-100 ألف)</option>
+              <option value="100k+">100K+ Followers (أكثر من 100 ألف)</option>
+            </select>
+          </div>
+
+          {/* Stage Filter */}
+          <div className="flex items-center gap-1.5">
+            <span className="opacity-60 text-[10px] uppercase">Stage:</span>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className={`px-2 py-1 border rounded text-xs focus:outline-none ${
+                isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+              }`}
+            >
+              <option value="All">All Stages</option>
+              {statuses.map(st => (
+                <option key={st} value={st}>{st}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Active Filter Clear */}
+          {(selectedScore !== 'All' || selectedFollowerRange !== 'All' || selectedStatus !== 'All') && (
+            <button
+              onClick={() => { setSelectedScore('All'); setSelectedFollowerRange('All'); setSelectedStatus('All'); }}
+              className="text-[11px] underline opacity-70 hover:opacity-100 text-rose-500 flex items-center gap-1"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset Filters</span>
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          {filteredCreators.length > 0 && (
+            <button
+              onClick={handleToggleSelectAll}
+              className={`flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded border transition-colors ${
+                isAllSelected
+                  ? isDarkMode ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : 'bg-amber-100 text-amber-900 border-amber-400'
+                  : isDarkMode ? 'border-neutral-700 hover:border-neutral-500 opacity-80' : 'border-neutral-300 hover:border-black opacity-80'
+              }`}
+              title={isAllSelected ? 'Deselect all visible coaches' : `Select all ${filteredCreators.length} visible coaches`}
+            >
+              <CheckSquare className="w-3 h-3 text-amber-500" />
+              <span>{isAllSelected ? 'Deselect All' : `Select All (${filteredCreators.length})`}</span>
+            </button>
+          )}
+
+          {selectedIds.length > 0 && (
+            <button
+              onClick={handleClearSelection}
+              className="text-[11px] font-mono text-rose-500 underline opacity-80 hover:opacity-100 flex items-center gap-0.5"
+              title="Clear all selections"
+            >
+              <X className="w-3 h-3" />
+              <span>Clear ({selectedIds.length})</span>
+            </button>
+          )}
+
+          <div className="opacity-60 text-[11px]">
+            Showing <strong>{filteredCreators.length}</strong> {filteredCreators.length === 1 ? 'coach' : 'coaches'}
+          </div>
+        </div>
+      </div>
+
       {/* Table View */}
       {viewMode === 'table' ? (
         <div className={`border overflow-hidden transition-all ${
@@ -282,12 +547,25 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
                 <tr className={`border-b font-mono uppercase tracking-wider text-[11px] ${
                   isDarkMode ? 'border-neutral-800 bg-[#141312] text-neutral-400' : 'border-neutral-900 bg-[#F7F5F0] text-neutral-700'
                 }`}>
+                  <th className="py-3 px-3 text-center w-10">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = isSomeSelected;
+                      }}
+                      onChange={handleToggleSelectAll}
+                      className="w-4 h-4 rounded cursor-pointer accent-amber-500"
+                      title={isAllSelected ? 'Deselect All' : 'Select All Visible Coaches'}
+                    />
+                  </th>
                   <th className="py-3 px-4">Coach / Handle</th>
+                  <th className="py-3 px-2 font-mono">Score</th>
                   <th className="py-3 px-3">Role / Classification</th>
                   <th className="py-3 px-3 font-mono">Followers</th>
                   <th className="py-3 px-3 font-mono">Stage</th>
                   <th className="py-3 px-3">Messages Sent</th>
-                  <th className="py-3 px-4">Analysis / Reasoning</th>
+                  <th className="py-3 px-4">Analysis &amp; Bio Flaw</th>
                   <th className="py-3 px-3">Links &amp; Video</th>
                   <th className="py-3 px-4 text-right">Edit / Action</th>
                 </tr>
@@ -295,7 +573,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
               <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                 {filteredCreators.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center">
+                    <td colSpan={10} className="py-12 text-center">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <AlertCircle className="w-6 h-6 opacity-40" />
                         <span className="font-serif text-base font-bold">No Records Found in this Category</span>
@@ -306,12 +584,32 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  filteredCreators.map((creator) => (
-                    <tr key={creator.id} className="hover:bg-neutral-500/5 transition-colors">
-                      {/* Name & Handle */}
-                      <td className="py-3 px-4">
-                        <div 
-                          onClick={() => handleOpenVault(creator)}
+                  filteredCreators.map((creator) => {
+                    const isSelected = selectedIds.includes(creator.id);
+                    return (
+                      <tr 
+                        key={creator.id} 
+                        className={`transition-colors ${
+                          isSelected
+                            ? isDarkMode ? 'bg-amber-500/15 hover:bg-amber-500/20' : 'bg-amber-50 hover:bg-amber-100/60'
+                            : 'hover:bg-neutral-500/5'
+                        }`}
+                      >
+                        {/* Multi-Select Checkbox */}
+                        <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleSelect(creator.id)}
+                            className="w-4 h-4 rounded cursor-pointer accent-amber-500"
+                            title="Select coach"
+                          />
+                        </td>
+
+                        {/* Name & Handle */}
+                        <td className="py-3 px-4">
+                          <div 
+                            onClick={() => handleOpenVault(creator)}
                           className="font-bold text-sm font-sans flex items-center gap-1.5 cursor-pointer hover:underline group"
                           title="Click to open Client Vault Drawer (Brand, Results, Credentials, RIB)"
                         >
@@ -332,6 +630,16 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
                           {creator.handle}
                           <ExternalLink className="w-2.5 h-2.5" />
                         </a>
+                        {creator.subNiche && (
+                          <span className="inline-block mt-0.5 font-mono text-[10px] px-1.5 py-0.2 rounded bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 truncate max-w-[130px]">
+                            {creator.subNiche}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Operator Score */}
+                      <td className="py-3 px-2">
+                        {getScoreBadge(creator.score)}
                       </td>
 
                       {/* Category Badge */}
@@ -373,8 +681,13 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
                         </button>
                       </td>
 
-                      {/* Notes / Gap Analysis or Archive Reason */}
+                      {/* Notes / Gap Analysis & Bio Flaw */}
                       <td className="py-3 px-4 max-w-xs">
+                        {creator.bioFlaw && (
+                          <div className="mb-1 text-[11px] font-mono text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 line-clamp-1" title={creator.bioFlaw}>
+                            ⚠️ {creator.bioFlaw}
+                          </div>
+                        )}
                         {creator.isArchived && creator.archiveReason ? (
                           <div className="p-1.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[11px] font-mono leading-tight">
                             <span className="font-bold uppercase text-[9px] block opacity-75">Archive Motive:</span>
@@ -405,6 +718,15 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
                       {/* Action buttons */}
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <a
+                            href={`https://ig.me/m/${creator.handle.replace('@', '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-1.5 rounded border border-blue-500/40 text-blue-500 hover:bg-blue-500/10 transition-colors"
+                            title="Send direct Instagram DM"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </a>
                           {creator.isArchived ? (
                             <button
                               onClick={() => onRestoreCreator(creator.id)}
@@ -456,30 +778,124 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
                         </div>
                       </td>
                     </tr>
-                  ))
+                  );
+                })
                 )}
               </tbody>
             </table>
           </div>
         </div>
       ) : (
-        /* Kanban Board View - Spacious Horizontal Lanes */
+        /* Kanban Board View - Stacked Grid (No Horizontal Scrolling) or Classic Lanes */
         <div className="space-y-4">
-          {/* Top helper bar with instructions & stage metrics */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs font-mono opacity-70">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-              <span className="font-bold">6 WORKFLOW LANES</span>
-              <span>&bull; Drag & drop or use quick-advance buttons</span>
+          {/* Top helper & layout control toolbar */}
+          <div className={`p-3 rounded-lg border flex flex-col md:flex-row items-start md:items-center justify-between gap-3 ${
+            isDarkMode ? 'bg-[#181716] border-neutral-800' : 'bg-[#FAF8F5] border-neutral-300'
+          }`}>
+            {/* Stage Quick Filter Tabs */}
+            <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider opacity-60 mr-1">
+                STAGE FILTER:
+              </span>
+              <button
+                type="button"
+                onClick={() => setKanbanStageFilter('All')}
+                className={`px-2.5 py-1 rounded text-xs font-mono font-bold transition-all cursor-pointer border ${
+                  kanbanStageFilter === 'All'
+                    ? isDarkMode 
+                      ? 'bg-white text-black border-white' 
+                      : 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
+                    : 'border-transparent opacity-70 hover:opacity-100 hover:border-current'
+                }`}
+              >
+                All Stages (6)
+              </button>
+              {statuses.map((st) => {
+                const count = filteredCreators.filter((c) => c.status === st).length;
+                const dot = stageDetails[st].dotColor;
+                const isSelected = kanbanStageFilter === st;
+                return (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setKanbanStageFilter(st)}
+                    className={`px-2.5 py-1 rounded text-xs font-mono transition-all cursor-pointer border flex items-center gap-1.5 ${
+                      isSelected
+                        ? isDarkMode
+                          ? 'bg-white text-black border-white font-bold'
+                          : 'bg-neutral-900 text-white border-neutral-900 font-bold shadow-xs'
+                        : 'border-transparent opacity-70 hover:opacity-100 hover:border-current'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${dot} shrink-0`}></span>
+                    <span>{st}</span>
+                    <span className="opacity-60 text-[10px]">({count})</span>
+                  </button>
+                );
+              })}
             </div>
-            <div className="hidden sm:flex items-center gap-2 text-[11px]">
-              <span>Scroll horizontally for full pipeline &rarr;</span>
+
+            {/* Layout Mode Switcher */}
+            <div className="flex items-center gap-1 self-stretch md:self-auto justify-end bg-neutral-200 dark:bg-neutral-800/80 p-1 rounded-md border border-neutral-300 dark:border-neutral-700">
+              <button
+                type="button"
+                onClick={() => setKanbanLayout('grid')}
+                className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  kanbanLayout === 'grid'
+                    ? isDarkMode
+                      ? 'bg-neutral-900 text-white shadow-xs'
+                      : 'bg-white text-black shadow-xs'
+                    : 'opacity-60 hover:opacity-100'
+                }`}
+                title="Stacked Grid (No Horizontal Scrolling - 3 columns per row)"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Stacked Grid (تحت بعض)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setKanbanLayout('stack')}
+                className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  kanbanLayout === 'stack'
+                    ? isDarkMode
+                      ? 'bg-neutral-900 text-white shadow-xs'
+                      : 'bg-white text-black shadow-xs'
+                    : 'opacity-60 hover:opacity-100'
+                }`}
+                title="Vertical List (One column per row)"
+              >
+                <Rows className="w-3.5 h-3.5" />
+                <span>Vertical List</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setKanbanLayout('horizontal')}
+                className={`px-2.5 py-1 rounded text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  kanbanLayout === 'horizontal'
+                    ? isDarkMode
+                      ? 'bg-neutral-900 text-white shadow-xs'
+                      : 'bg-white text-black shadow-xs'
+                    : 'opacity-60 hover:opacity-100'
+                }`}
+                title="Horizontal Lanes (Wide board)"
+              >
+                <Columns3 className="w-3.5 h-3.5" />
+                <span>Horizontal Lanes</span>
+              </button>
             </div>
           </div>
 
-          {/* Kanban Columns Lane */}
-          <div className="flex gap-5 overflow-x-auto pb-6 pt-1 items-start scrollbar-thin select-none">
-            {statuses.map((statusCol) => {
+          {/* Kanban Columns Container: Grid (No Horizontal Scroll), Vertical Stack, or Horizontal Lanes */}
+          <div className={`${
+            kanbanLayout === 'grid'
+              ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 pb-6 pt-1 select-none'
+              : kanbanLayout === 'stack'
+              ? 'flex flex-col gap-5 pb-6 pt-1 select-none max-w-4xl mx-auto w-full'
+              : 'flex gap-5 overflow-x-auto pb-6 pt-1 items-start scrollbar-thin select-none'
+          }`}>
+            {(kanbanStageFilter === 'All' ? statuses : statuses.filter(s => s === kanbanStageFilter)).map((statusCol) => {
               const columnCreators = filteredCreators.filter((c) => c.status === statusCol);
               const config = stageDetails[statusCol];
 
@@ -499,7 +915,9 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
                       onUpdateCreatorStatus(id, statusCol);
                     }
                   }}
-                  className={`w-[320px] shrink-0 border-2 rounded-lg flex flex-col transition-all ${
+                  className={`${
+                    kanbanLayout === 'horizontal' ? 'w-[320px] shrink-0' : 'w-full'
+                  } border-2 rounded-lg flex flex-col transition-all ${
                     dragOverCol === statusCol ? 'ring-2 ring-blue-500 scale-[1.01]' : ''
                   } ${
                     isDarkMode 
@@ -536,54 +954,88 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
 
                   {/* Cards Body */}
                   <div className="p-3.5 space-y-3 min-h-[400px] flex flex-col justify-start">
-                    {columnCreators.map((creator) => (
-                      <div 
-                        key={creator.id}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('text/plain', creator.id);
-                        }}
-                        className={`border-2 p-3.5 rounded-md text-xs transition-all cursor-grab active:cursor-grabbing ${
-                          isDarkMode 
-                            ? 'bg-[#1F1E1C] border-neutral-700 hover:border-neutral-500 text-white' 
-                            : 'bg-white border-neutral-900 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:-translate-y-0.5'
-                        }`}
-                      >
-                        {/* Top: Handle, Name, Followers */}
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="overflow-hidden">
-                            <strong 
-                              onClick={() => handleOpenVault(creator)}
-                              className="block font-sans text-sm font-bold truncate cursor-pointer hover:underline"
-                              title="Click to open Client Vault Drawer (Brand, Results, Credentials, RIB)"
-                            >
-                              {creator.name}
-                            </strong>
-                            <a
-                              href={creator.profileUrl || `https://instagram.com/${creator.handle.replace('@', '')}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="font-mono text-xs text-blue-500 hover:underline inline-flex items-center gap-1 mt-0.5"
-                            >
-                              <span>{creator.handle}</span>
-                              <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
+                    {columnCreators.map((creator) => {
+                      const isSelected = selectedIds.includes(creator.id);
+                      return (
+                        <div 
+                          key={creator.id}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', creator.id);
+                          }}
+                          className={`border-2 p-3.5 rounded-md text-xs transition-all cursor-grab active:cursor-grabbing ${
+                            isSelected
+                              ? isDarkMode
+                                ? 'ring-2 ring-amber-500 border-amber-500 bg-[#242019]'
+                                : 'ring-2 ring-amber-500 border-amber-500 bg-amber-50/60'
+                              : isDarkMode 
+                                ? 'bg-[#1F1E1C] border-neutral-700 hover:border-neutral-500 text-white' 
+                                : 'bg-white border-neutral-900 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] hover:translate-x-0.5 hover:-translate-y-0.5'
+                          }`}
+                        >
+                          {/* Top: Checkbox, Handle, Name, Followers */}
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex items-start gap-2 overflow-hidden">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleSelect(creator.id);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-4 h-4 mt-0.5 rounded cursor-pointer accent-amber-500 shrink-0"
+                                title="Select coach for bulk action"
+                              />
+                              <div className="overflow-hidden">
+                                <strong 
+                                  onClick={() => handleOpenVault(creator)}
+                                  className="block font-sans text-sm font-bold truncate cursor-pointer hover:underline"
+                                  title="Click to open Client Vault Drawer (Brand, Results, Credentials, RIB)"
+                                >
+                                  {creator.name}
+                                </strong>
+                              <a
+                                href={creator.profileUrl || `https://instagram.com/${creator.handle.replace('@', '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="font-mono text-xs text-blue-500 hover:underline inline-flex items-center gap-1 mt-0.5"
+                              >
+                                <span>{creator.handle}</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            </div>
                           </div>
-                          <span className={`font-mono text-xs font-bold px-2 py-0.5 border rounded shrink-0 ${
-                            isDarkMode ? 'border-neutral-700 bg-neutral-800' : 'border-neutral-900 bg-neutral-100'
-                          }`}>
-                            {formatFollowers(creator.followers)}
-                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {getScoreBadge(creator.score)}
+                            <span className={`font-mono text-xs font-bold px-2 py-0.5 border rounded ${
+                              isDarkMode ? 'border-neutral-700 bg-neutral-800' : 'border-neutral-900 bg-neutral-100'
+                            }`}>
+                              {formatFollowers(creator.followers)}
+                            </span>
+                          </div>
                         </div>
 
-                        {/* Category & Niche */}
-                        <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+                        {/* Category, Niche & Sub-Niche */}
+                        <div className="flex flex-wrap items-center gap-1.5 mb-2">
                           {getCategoryBadge(creator.coachCategory)}
                           <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-current opacity-60">
                             {creator.niche}
                           </span>
+                          {creator.subNiche && (
+                            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300">
+                              {creator.subNiche}
+                            </span>
+                          )}
                         </div>
+
+                        {/* Bio Flaw Badge if present */}
+                        {creator.bioFlaw && (
+                          <div className="mb-2 text-[10px] font-mono text-rose-600 dark:text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 line-clamp-1" title={creator.bioFlaw}>
+                            ⚠️ {creator.bioFlaw}
+                          </div>
+                        )}
 
                         {/* Notes / Memo */}
                         {creator.notes && (
@@ -618,6 +1070,16 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
                         {/* Card Footer: Quick Move, Archive & Edit */}
                         <div className="pt-2.5 border-t border-dashed border-current opacity-85 flex items-center justify-between gap-1 mt-1">
                           <div className="flex items-center gap-1.5">
+                            <a
+                              href={`https://ig.me/m/${creator.handle.replace('@', '')}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1 rounded border border-blue-500/40 text-blue-500 hover:bg-blue-500/10 transition-colors"
+                              title="Send direct Instagram DM"
+                            >
+                              <Send className="w-2.5 h-2.5" />
+                            </a>
+
                             <button
                               onClick={() => onOpenEditCreator(creator)}
                               className="font-mono text-[11px] font-bold underline flex items-center gap-1 hover:opacity-100"
@@ -694,7 +1156,8 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
                           )}
                         </div>
                       </div>
-                    ))}
+                    );
+                  })}
 
                     {/* Clean, Non-Crammed Empty State */}
                     {columnCreators.length === 0 && (
@@ -729,6 +1192,92 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Floating Batch Action Toolbar */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 max-w-2xl w-[92%] animate-in slide-in-from-bottom-5 duration-200">
+          <div className={`p-3 px-4 rounded-xl border-2 shadow-2xl flex flex-wrap items-center justify-between gap-3 ${
+            isDarkMode 
+              ? 'bg-[#181716] border-amber-500 text-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.8)]' 
+              : 'bg-[#FAF8F5] border-black text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+              <span className="font-mono text-xs font-bold">
+                {selectedIds.length} {selectedIds.length === 1 ? 'Coach' : 'Coaches'} Selected
+              </span>
+              <span className="font-mono text-[10px] opacity-60 hidden sm:inline">
+                ({selectedCreators.reduce((acc, c) => acc + (c.followers || 0), 0).toLocaleString()} reach)
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Export CSV */}
+              <button
+                type="button"
+                onClick={() => handleDirectCSV(selectedCreators)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs font-bold rounded border transition-all ${
+                  isDarkMode 
+                    ? 'bg-neutral-800 hover:bg-neutral-700 text-white border-neutral-600' 
+                    : 'bg-white hover:bg-neutral-100 text-black border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+                }`}
+                title="Export selected creators to CSV spreadsheet"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Export CSV</span>
+              </button>
+
+              {/* Export PDF / Print */}
+              <button
+                type="button"
+                onClick={() => handleOpenExport(selectedCreators)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs font-bold rounded border transition-all ${
+                  isDarkMode 
+                    ? 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+                }`}
+                title="Print or export selected creators to PDF"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Export PDF</span>
+              </button>
+
+              {/* Archive Selected */}
+              <button
+                type="button"
+                onClick={handleTriggerBulkArchive}
+                className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-xs font-bold rounded border transition-all ${
+                  isDarkMode 
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white border-amber-400' 
+                    : 'bg-amber-600 hover:bg-amber-700 text-white border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+                }`}
+                title="Move selected creators to Archive ledger"
+              >
+                <Archive className="w-3.5 h-3.5" />
+                <span>Archive ({selectedIds.length})</span>
+              </button>
+
+              {/* Deselect */}
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                className="p-1.5 rounded hover:bg-neutral-500/20 opacity-70 hover:opacity-100 transition-colors"
+                title="Deselect all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hitlist Export & Print Preview Modal */}
+      <HitlistExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        creators={exportTargetCreators}
+        isDarkMode={isDarkMode}
+      />
 
       {/* Client Vault Slide-out Drawer */}
       <ClientVaultDrawer

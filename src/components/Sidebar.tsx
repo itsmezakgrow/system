@@ -14,7 +14,8 @@ import {
   Sun,
   Moon,
   Settings,
-  X
+  X,
+  CheckSquare
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,6 +27,7 @@ interface SidebarProps {
   onToggleTheme: () => void;
   onSignOut: () => void;
   creatorCount: number;
+  dueTasksCount?: number;
   isMobileOpen?: boolean;
   setIsMobileOpen?: (open: boolean) => void;
   onOpenSettings?: () => void;
@@ -40,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleTheme,
   onSignOut,
   creatorCount,
+  dueTasksCount,
   isMobileOpen = false,
   setIsMobileOpen,
   onOpenSettings,
@@ -47,6 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 className="w-4 h-4" /> },
     { id: 'pipeline', label: 'Hitlist Pipeline', icon: <Target className="w-4 h-4" />, badge: creatorCount.toString() },
+    { id: 'tasks', label: 'Outreach Tasks', icon: <CheckSquare className="w-4 h-4" />, badge: dueTasksCount && dueTasksCount > 0 ? dueTasksCount.toString() : undefined },
     { id: 'calendar', label: 'Calls & Calendar', icon: <Calendar className="w-4 h-4" /> },
     { id: 'tracker', label: 'Daily Tracker', icon: <CalendarCheck className="w-4 h-4" /> },
     { id: 'scripts', label: 'Scripts & SOPs', icon: <BookOpen className="w-4 h-4" /> },
@@ -147,15 +151,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {navItems.map((item) => {
             const isActive = currentTab === item.id;
             return (
-              <button
+              <a
                 key={item.id}
-                onClick={() => {
-                  setCurrentTab(item.id);
-                  if (isMobileOpen) {
-                    setIsMobileOpen?.(false);
+                href={`#${item.id}`}
+                onClick={(e) => {
+                  // If standard left-click without modifier keys, handle in-app without reload
+                  if (!e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+                    e.preventDefault();
+                    setCurrentTab(item.id);
+                    if (isMobileOpen) {
+                      setIsMobileOpen?.(false);
+                    }
                   }
                 }}
-                className={`font-mono text-xs transition-all group relative border ${
+                className={`font-mono text-xs transition-all group relative border cursor-pointer select-none no-underline ${
                   isCollapsed && !isMobileOpen
                     ? 'w-11 h-11 flex items-center justify-center rounded'
                     : 'w-full flex items-center gap-3 px-3 py-2.5 rounded'
@@ -168,7 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     ? 'border-transparent text-neutral-400 hover:text-white hover:bg-neutral-800/40 hover:border-neutral-700'
                     : 'border-transparent text-neutral-600 hover:text-black hover:bg-neutral-200/50 hover:border-neutral-300'
               }`}
-              title={isCollapsed ? item.label : undefined}
+              title={item.label}
             >
               <span className="shrink-0">{item.icon}</span>
               {!isCollapsed && (
@@ -183,7 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {item.badge || '0'}
                 </span>
               )}
-            </button>
+            </a>
           );
         })}
       </nav>

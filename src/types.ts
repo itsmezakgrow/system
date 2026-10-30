@@ -63,6 +63,19 @@ export interface Creator {
   archiveReason?: string; // Reason / Motive for archiving (e.g. Bad attitude, Not for now, Low ticket)
   archivedAt?: string; // Date archived
   vault?: CreatorVault; // Sensitive client assets and credentials
+
+  // Operator Acquisition Fields (from sheet breakdown)
+  subNiche?: string; // e.g. "Natty Transformation & Aesthetics", "Men's Fat Loss", "Calisthenics"
+  bioFlaw?: string; // Current Bio Flaw (e.g. "No links, manual DM coaching only", "Raw WhatsApp link (wa.me)")
+  loomHook?: string; // Loom Opening Hook / Cold DM Opener (e.g. "Salam Yassir, 7.8M views...", "Salam Mehdi...")
+  source?: string; // Lead Source (e.g. "Instagram Explore", "TikTok", "Hashtag", "Referral", "1")
+  score?: number; // Operator Potential Score out of 10 (1 to 10 rating for fit, monetization & audience quality)
+
+  // Daily Outreach & Task Scheduling
+  scheduledContactDate?: string; // YYYY-MM-DD for when to message/follow up
+  lastTalkedDate?: string; // YYYY-MM-DD of last conversation
+  talkedStatus?: 'Pending' | 'Sent - No Answer' | 'Answered Today' | 'Follow-up Due' | 'Call Booked';
+  outreachNotes?: string; // Quick note on what was discussed or next move
 }
 
 export type MeetingType = 'Discovery Zoom' | 'Pitch & Loom Review' | 'Closing Call (50/50)' | 'Client Strategy' | 'Other';
@@ -113,4 +126,4 @@ export interface ResourceItem {
   iconName: string;
 }
 
-export type NavTab = 'dashboard' | 'pipeline' | 'calendar' | 'tracker' | 'scripts' | 'analytics' | 'vault';
+export type NavTab = 'dashboard' | 'pipeline' | 'tasks' | 'calendar' | 'tracker' | 'scripts' | 'analytics' | 'vault';

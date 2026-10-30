@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Creator, CreatorStatus, NicheCategory, CoachCategory, Touchpoint } from '../types';
-import { parseSocialHandle } from '../utils/urlHelper';
-import { X, Save, Plus, ExternalLink, Trash2, Video, MessageSquare, Calendar, Sparkles } from 'lucide-react';
+import { parseSocialHandle, deriveNameFromHandle, parseFollowerInput, formatFollowersDisplay } from '../utils/urlHelper';
+import { X, Save, Plus, ExternalLink, Trash2, Video, MessageSquare, Calendar, Sparkles, Star, Flame } from 'lucide-react';
 
 interface EditCreatorModalProps {
   creator: Creator | null;
@@ -23,7 +23,9 @@ export const EditCreatorModal: React.FC<EditCreatorModalProps> = ({
   const [name, setName] = useState(creator.name);
   const [handleInput, setHandleInput] = useState(creator.handle);
   const [platform, setPlatform] = useState<Creator['platform']>(creator.platform);
-  const [followers, setFollowers] = useState<number>(creator.followers);
+  const [followersInput, setFollowersInput] = useState<string>(
+    creator.followers ? formatFollowersDisplay(creator.followers) : '20K'
+  );
   const [engagementRate, setEngagementRate] = useState<string>(creator.engagementRate || '');
   const [niche, setNiche] = useState<NicheCategory>(creator.niche);
   const [coachCategory, setCoachCategory] = useState<CoachCategory>(creator.coachCategory || 'Prospect');
@@ -35,6 +37,15 @@ export const EditCreatorModal: React.FC<EditCreatorModalProps> = ({
   const [videoUrl, setVideoUrl] = useState(creator.videoUrl || '');
   const [touchpoints, setTouchpoints] = useState<Touchpoint[]>(creator.touchpoints || []);
 
+  // Operator Acquisition Fields
+  const [score, setScore] = useState<number>(creator.score ?? 8);
+  const [subNiche, setSubNiche] = useState<string>(creator.subNiche || '');
+  const [bioFlaw, setBioFlaw] = useState<string>(creator.bioFlaw || '');
+  const [loomHook, setLoomHook] = useState<string>(creator.loomHook || '');
+  const [source, setSource] = useState<string>(creator.source || 'Instagram Explore');
+  const [scheduledContactDate, setScheduledContactDate] = useState<string>(creator.scheduledContactDate || '');
+  const [talkedStatus, setTalkedStatus] = useState<Creator['talkedStatus']>(creator.talkedStatus || 'Pending');
+
   // New touchpoint inline form state
   const [newTouchType, setNewTouchType] = useState<Touchpoint['type']>('Message 1 (Hook)');
   const [newTouchDate, setNewTouchDate] = useState(new Date().toISOString().split('T')[0]);
@@ -42,8 +53,10 @@ export const EditCreatorModal: React.FC<EditCreatorModalProps> = ({
   const [newTouchLink, setNewTouchLink] = useState('');
   const [showAddTouchpoint, setShowAddTouchpoint] = useState(false);
 
-  // Auto-calculated profile url
+  // Auto-calculated profile url & name helper
   const parsed = parseSocialHandle(handleInput, platform);
+  const derivedCandidate = deriveNameFromHandle(handleInput);
+  const computedFollowers = parseFollowerInput(followersInput, true);
 
   const handleAddTouchpoint = () => {
     if (!newTouchNote.trim()) return;
@@ -73,7 +86,7 @@ export const EditCreatorModal: React.FC<EditCreatorModalProps> = ({
       platform,
       profileUrl: parsed.profileUrl,
       videoUrl: videoUrl.trim() || undefined,
-      followers: Number(followers),
+      followers: computedFollowers,
       engagementRate: engagementRate.trim() || undefined,
       niche,
       coachCategory,
@@ -84,6 +97,13 @@ export const EditCreatorModal: React.FC<EditCreatorModalProps> = ({
       actualMRR: Number(actualMRR),
       touchpoints,
       lastContactDate: touchpoints.length > 0 ? touchpoints[0].date : creator.lastContactDate,
+      score: Number(score),
+      subNiche: subNiche.trim() || undefined,
+      bioFlaw: bioFlaw.trim() || undefined,
+      loomHook: loomHook.trim() || undefined,
+      source: source.trim() || undefined,
+      scheduledContactDate: scheduledContactDate || undefined,
+      talkedStatus: talkedStatus || 'Pending',
     });
     onClose();
   };
@@ -136,32 +156,52 @@ export const EditCreatorModal: React.FC<EditCreatorModalProps> = ({
           {/* Name & Handle with auto-link generator */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block opacity-70 mb-1 uppercase">Coach Name</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block opacity-70 uppercase">Coach Name</label>
+                {derivedCandidate && derivedCandidate !== name && (
+                  <button
+                    type="button"
+                    onClick={() => setName(derivedCandidate)}
+                    className="text-[10px] text-emerald-500 hover:underline flex items-center gap-1 font-bold"
+                  >
+                    <Sparkles className="w-3 h-3" /> Auto-fill "{derivedCandidate}"
+                  </button>
+                )}
+                {name && derivedCandidate === name && (
+                  <span className="text-[10px] text-emerald-500 font-bold flex items-center gap-1">
+                    ✓ From link
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Coach Yassine Mouhcine"
                 className={`w-full p-2.5 border rounded focus:outline-none ${
                   isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
                 }`}
               />
             </div>
             <div>
-              <label className="block opacity-70 mb-1 uppercase">Instagram / Social Handle or Full Link</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block opacity-70 uppercase">Instagram / Social Handle or Full Link</label>
+                <span className="text-[10px] opacity-60">Paste full link or @handle</span>
+              </div>
               <input
                 type="text"
                 required
                 value={handleInput}
                 onChange={(e) => setHandleInput(e.target.value)}
-                placeholder="@coach_handle or link"
+                placeholder="@coach_handle or https://instagram.com/..."
                 className={`w-full p-2.5 border rounded focus:outline-none ${
                   isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
                 }`}
               />
               {parsed.profileUrl && (
                 <div className="mt-1 flex items-center justify-between text-[11px] text-blue-500">
-                  <span>Auto-Link: {parsed.profileUrl}</span>
+                  <span>Auto-Link: {parsed.profileUrl} {parsed.cleanUsername && `(@${parsed.cleanUsername})`}</span>
                   <a href={parsed.profileUrl} target="_blank" rel="noreferrer" className="underline flex items-center gap-0.5">
                     Test <ExternalLink className="w-2.5 h-2.5" />
                   </a>
@@ -188,15 +228,43 @@ export const EditCreatorModal: React.FC<EditCreatorModalProps> = ({
               </select>
             </div>
             <div>
-              <label className="block opacity-70 mb-1 uppercase">Followers</label>
-              <input
-                type="number"
-                value={followers}
-                onChange={(e) => setFollowers(Number(e.target.value))}
-                className={`w-full p-2.5 border rounded focus:outline-none ${
-                  isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
-                }`}
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block opacity-70 uppercase">Followers</label>
+                <span className="text-[11px] font-bold text-amber-500 font-mono">
+                  = {computedFollowers.toLocaleString()}
+                </span>
+              </div>
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={followersInput}
+                  onChange={(e) => setFollowersInput(e.target.value)}
+                  placeholder="e.g. 20K or 50"
+                  className={`w-full p-2.5 pr-10 border rounded font-mono font-bold focus:outline-none ${
+                    isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+                  }`}
+                />
+                <div className="absolute right-2 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-500 font-mono font-bold text-xs pointer-events-none select-none">
+                  K
+                </div>
+              </div>
+              {/* Quick follower presets */}
+              <div className="flex items-center gap-1 mt-1.5 overflow-x-auto pb-0.5">
+                {['10K', '20K', '50K', '100K', '250K', '500K'].map((preset) => (
+                  <button
+                    type="button"
+                    key={preset}
+                    onClick={() => setFollowersInput(preset)}
+                    className={`px-1.5 py-0.5 text-[10px] rounded border transition-all ${
+                      followersInput.toUpperCase() === preset
+                        ? isDarkMode ? 'bg-amber-500 text-black font-bold border-amber-500' : 'bg-amber-600 text-white font-bold border-amber-600'
+                        : 'opacity-60 hover:opacity-100 border-current'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <label className="block opacity-70 mb-1 uppercase">Engagement Rate</label>
@@ -244,6 +312,143 @@ export const EditCreatorModal: React.FC<EditCreatorModalProps> = ({
                 isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
               }`}
             />
+          </div>
+
+          {/* Operator Potential Score (Out of 10) */}
+          <div className={`p-3.5 border rounded ${
+            isDarkMode ? 'bg-[#151413] border-neutral-700' : 'bg-neutral-50 border-neutral-300'
+          }`}>
+            <div className="flex items-center justify-between mb-2">
+              <label className="font-bold uppercase tracking-wider flex items-center gap-1.5 text-xs">
+                <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                <span>Operator Potential Score / تقييم الفرصة (من 10):</span>
+              </label>
+              <span className={`px-2 py-0.5 rounded text-xs font-bold font-mono border ${
+                score >= 9 
+                  ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500' 
+                  : score >= 7 
+                    ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500' 
+                    : 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500'
+              }`}>
+                {score}/10 {score >= 9 ? '🔥 Top Priority Lead' : score >= 7 ? '✓ High Potential' : 'Moderate'}
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-10 gap-1">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                <button
+                  type="button"
+                  key={num}
+                  onClick={() => setScore(num)}
+                  className={`py-2 rounded font-mono text-xs font-bold border transition-all ${
+                    score === num
+                      ? num >= 9
+                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm scale-105'
+                        : num >= 7
+                          ? 'bg-blue-600 text-white border-blue-700 shadow-sm scale-105'
+                          : 'bg-neutral-800 text-white border-neutral-900 shadow-sm scale-105'
+                      : isDarkMode
+                        ? 'bg-[#1C1B19] border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500'
+                        : 'bg-white border-neutral-300 text-neutral-600 hover:border-black hover:text-black'
+                  }`}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Sub-Niche & Lead Source */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block opacity-70 mb-1 uppercase">Sub-Niche (التخصص الدقيق)</label>
+              <input
+                type="text"
+                value={subNiche}
+                onChange={(e) => setSubNiche(e.target.value)}
+                placeholder="e.g. Natty Transformation, Ancien Gros / Marathon Athlete"
+                className={`w-full p-2.5 border rounded focus:outline-none ${
+                  isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+                }`}
+              />
+            </div>
+            <div>
+              <label className="block opacity-70 mb-1 uppercase">Lead Source / المصدر</label>
+              <input
+                type="text"
+                value={source}
+                onChange={(e) => setSource(e.target.value)}
+                placeholder="e.g. Instagram Explore, Reels, TikTok, 1"
+                className={`w-full p-2.5 border rounded focus:outline-none ${
+                  isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+                }`}
+              />
+            </div>
+          </div>
+
+          {/* Current Bio Flaw */}
+          <div>
+            <label className="block opacity-70 mb-1 uppercase">Current Bio Flaw / الخلل الحالي في البايو أو الفانل</label>
+            <input
+              type="text"
+              value={bioFlaw}
+              onChange={(e) => setBioFlaw(e.target.value)}
+              placeholder="e.g. No links, manual 'DM Coaching' only / Raw WhatsApp link (wa.me) in bio"
+              className={`w-full p-2.5 border rounded focus:outline-none ${
+                isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+              }`}
+            />
+          </div>
+
+          {/* Loom Opening Hook / Cold DM Hook */}
+          <div>
+            <label className="block opacity-70 mb-1 uppercase flex items-center justify-between">
+              <span>Loom Opening Hook / Cold DM Hook (دخلة الرسالة المخصصة)</span>
+              <span className="text-[10px] opacity-60">Ready to copy in 1-click</span>
+            </label>
+            <textarea
+              rows={2}
+              value={loomHook}
+              onChange={(e) => setLoomHook(e.target.value)}
+              placeholder="e.g. Salam Yassir, 7.8M views... / Salam Saad, l'histoire dyalk..."
+              className={`w-full p-2.5 border rounded focus:outline-none resize-none ${
+                isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+              }`}
+            />
+          </div>
+
+          {/* Scheduled Outreach Date & Talked Status */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block opacity-70 mb-1 uppercase flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                <span>Schedule Outreach Date (تاريخ مراسلة الكوتش)</span>
+              </label>
+              <input
+                type="date"
+                value={scheduledContactDate}
+                onChange={(e) => setScheduledContactDate(e.target.value)}
+                className={`w-full p-2.5 border rounded focus:outline-none ${
+                  isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+                }`}
+              />
+            </div>
+            <div>
+              <label className="block opacity-70 mb-1 uppercase">Outreach Talk Status (حالة التواصل)</label>
+              <select
+                value={talkedStatus}
+                onChange={(e) => setTalkedStatus(e.target.value as Creator['talkedStatus'])}
+                className={`w-full p-2.5 border rounded focus:outline-none ${
+                  isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+                }`}
+              >
+                <option value="Pending">Pending / لم يراسل بعد</option>
+                <option value="Sent - No Answer">Sent - Waiting Answer / تم الإرسال بانتظار الرد</option>
+                <option value="Answered Today">Answered Today (Yes, I talked) / جاوب اليوم</option>
+                <option value="Follow-up Due">Follow-up Due / يحتاج تذكير</option>
+                <option value="Call Booked">Call Booked / تم حجز مكالمة</option>
+              </select>
+            </div>
           </div>
 
           {/* Status & MRR */}

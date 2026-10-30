@@ -12,7 +12,9 @@ import {
   FileJson,
   Calendar,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Trash2,
+  RotateCcw
 } from 'lucide-react';
 import { Creator, DailyLog, ScriptItem, ResourceItem, CalendarMeeting } from '../types';
 import { syncAllToFirestore } from '../services/crmService';
@@ -33,6 +35,8 @@ interface SettingsModalProps {
     resources: ResourceItem[];
     meetings: CalendarMeeting[];
   }) => void;
+  onClearAllData?: () => Promise<void>;
+  onResetToDemoData?: () => Promise<void>;
   userEmail: string;
   onToast: (msg: string) => void;
 }
@@ -47,6 +51,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   resources,
   meetings,
   onImportWorkspaceData,
+  onClearAllData,
+  onResetToDemoData,
   userEmail,
   onToast,
 }) => {
@@ -57,9 +63,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     return localStorage.getItem('zak_crm_last_backup_date');
   });
 
+  // Security checkpoint flow:
+  // pending action can be 'wipe' | 'reset'
+  // step can be 'choice' (choose export vs skip) | 'exported_ready' (exported, ready to execute) | 'are_you_sure' (skipped export, final warning)
+  const [securityModalAction, setSecurityModalAction] = useState<'wipe' | 'reset' | null>(null);
+  const [securityStep, setSecurityStep] = useState<'choice' | 'exported_ready' | 'are_you_sure'>('choice');
+  const [isProcessingSecurityAction, setIsProcessingSecurityAction] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!isOpen) return null;
+
+  const openSecurityFlow = (action: 'wipe' | 'reset') => {
+    setSecurityModalAction(action);
+    setSecurityStep('choice');
+  };
+
+  const closeSecurityFlow = () => {
+    setSecurityModalAction(null);
+    setSecurityStep('choice');
+  };
+
+  const handleSecurityExport = () => {
+    handleExportJSON();
+    setSecurityStep('exported_ready');
+  };
+
+  const handleSecuritySkipExport = () => {
+    setSecurityStep('are_you_sure');
+  };
+
+  const handleConfirmSecurityExecution = async () => {
+    if (!securityModalAction) return;
+    setIsProcessingSecurityAction(true);
+    try {
+      if (securityModalAction === 'wipe') {
+        if (onClearAllData) await onClearAllData();
+      } else {
+        if (onResetToDemoData) await onResetToDemoData();
+      }
+      closeSecurityFlow();
+    } finally {
+      setIsProcessingSecurityAction(false);
+    }
+  };
 
   // Handle Export Full JSON
   const handleExportJSON = () => {
@@ -376,6 +423,86 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
+          {/* Section 4: Danger Zone // Reset Workspace & Clear All Data */}
+          <div className={`p-4 border-2 rounded space-y-4 ${
+            isDarkMode ? 'bg-[#181111] border-red-900/60' : 'bg-red-50/60 border-red-300'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-red-500" />
+                <span className="font-mono text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
+                  DANGER ZONE // RESET &amp; CLEAR TEST DATA
+                </span>
+              </div>
+              <span className="font-mono text-[10px] px-2 py-0.5 rounded border border-red-500/40 text-red-500 bg-red-500/10 font-bold">
+                TEST CLEANUP
+              </span>
+            </div>
+
+            <p className="text-xs opacity-80 font-sans leading-relaxed">
+              If you have been testing the application with dummy numbers or sample coaches and want to start with a fresh clean workspace, you can clear all data or reset to default templates below.
+            </p>
+
+            <div className="space-y-3 pt-1">
+              {/* Action 1: Wipe all records (0 items) */}
+              <div className={`p-3 rounded border ${
+                isDarkMode ? 'bg-[#1F1414] border-red-900/40' : 'bg-white border-red-200'
+              }`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className="font-mono text-xs font-bold text-red-600 dark:text-red-400 block">
+                      1. Wipe All Data (Start 100% Clean / 0 Records)
+                    </span>
+                    <span className="text-[11px] font-sans opacity-75 block mt-0.5">
+                      Clears all coaches, outreach logs, meetings, and vault items from both this device and Firebase Cloud so you can enter real data without clutter.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 mt-3 pt-2 border-t border-red-200 dark:border-red-900/40">
+                  <button
+                    type="button"
+                    onClick={() => openSecurityFlow('wipe')}
+                    className="px-4 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider bg-red-600 hover:bg-red-700 text-white transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Wipe All Data</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Action 2: Reset to Clean Blueprint (Default SOPs & 0 dummy records) */}
+              <div className={`p-3 rounded border ${
+                isDarkMode ? 'bg-[#1A1814] border-amber-900/40' : 'bg-white border-amber-200'
+              }`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className="font-mono text-xs font-bold text-amber-600 dark:text-amber-400 block">
+                      2. Reset Workspace to Default Blueprint
+                    </span>
+                    <span className="text-[11px] font-sans opacity-75 block mt-0.5">
+                      Clears all test prospect entries and meetings, and reinstalls the standard winning cold DM pitches and objection scripts.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 mt-3 pt-2 border-t border-amber-200 dark:border-amber-900/40">
+                  <button
+                    type="button"
+                    onClick={() => openSecurityFlow('reset')}
+                    className={`px-4 py-2 rounded text-xs font-mono font-bold uppercase tracking-wider border transition-all cursor-pointer flex items-center gap-1.5 ${
+                      isDarkMode 
+                        ? 'border-amber-600/80 bg-amber-600/20 text-amber-400 hover:bg-amber-600/30' 
+                        : 'border-amber-600 bg-amber-100 text-amber-900 hover:bg-amber-200 shadow-xs'
+                    }`}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset to Blueprint Template</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
@@ -391,6 +518,205 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* 2-Step Security Safeguard Modal */}
+      {securityModalAction && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className={`w-full max-w-lg border-2 rounded p-5 sm:p-6 shadow-2xl relative transition-all ${
+            isDarkMode 
+              ? 'bg-[#181615] border-neutral-700 text-[#F4F2ED]' 
+              : 'bg-white border-neutral-900 text-[#111111] shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]'
+          }`}>
+            {/* Step 1: Initial Two Choices (Export vs Skip) */}
+            {securityStep === 'choice' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 pb-3 border-b border-current opacity-80">
+                  <div className={`p-2 rounded ${securityModalAction === 'wipe' ? 'bg-red-500/20 text-red-500' : 'bg-amber-500/20 text-amber-500'}`}>
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-lg font-bold">
+                      {securityModalAction === 'wipe' ? 'Security Checkpoint: Wipe All Data' : 'Security Checkpoint: Reset Blueprint'}
+                    </h3>
+                    <p className="text-xs font-mono opacity-70">
+                      Choose an option before proceeding:
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs font-sans leading-relaxed opacity-85">
+                  To protect your data and avoid accidental loss, please choose whether you would like to download a safety backup before the action is executed:
+                </p>
+
+                <div className="space-y-3 pt-1">
+                  {/* Choice 1: Export */}
+                  <button
+                    type="button"
+                    onClick={handleSecurityExport}
+                    className={`w-full p-4 rounded border-2 text-left transition-all flex items-start gap-3.5 cursor-pointer group ${
+                      isDarkMode
+                        ? 'border-blue-500/60 bg-blue-500/10 hover:bg-blue-500/20 text-white'
+                        : 'border-blue-600 bg-blue-50 hover:bg-blue-100 text-blue-950 shadow-[3px_3px_0px_0px_rgba(37,99,235,1)]'
+                    }`}
+                  >
+                    <div className="p-2 rounded bg-blue-600 text-white shrink-0 mt-0.5">
+                      <Download className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="font-mono text-xs font-bold uppercase tracking-wider block text-blue-600 dark:text-blue-400">
+                        Choice 1: Export JSON Backup First (Recommended)
+                      </span>
+                      <span className="text-xs font-sans opacity-85 block mt-1 leading-snug">
+                        Downloads a full JSON file containing your current coaches, logs, and meetings to your computer.
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Choice 2: Skip Export */}
+                  <button
+                    type="button"
+                    onClick={handleSecuritySkipExport}
+                    className={`w-full p-4 rounded border text-left transition-all flex items-start gap-3.5 cursor-pointer ${
+                      isDarkMode
+                        ? 'border-neutral-700 bg-neutral-900/60 hover:border-neutral-500 text-white'
+                        : 'border-neutral-300 bg-neutral-50 hover:border-neutral-900 hover:bg-neutral-100 text-neutral-900'
+                    }`}
+                  >
+                    <div className="p-2 rounded bg-neutral-700 text-white shrink-0 mt-0.5">
+                      <ArrowRight className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="font-mono text-xs font-bold uppercase tracking-wider block">
+                        Choice 2: I Don't Want to Export (Skip Backup)
+                      </span>
+                      <span className="text-xs font-sans opacity-70 block mt-1 leading-snug">
+                        Proceed directly without downloading a backup copy.
+                      </span>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="pt-3 border-t border-dashed border-current opacity-70 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={closeSecurityFlow}
+                    className="px-4 py-2 font-mono text-xs underline hover:opacity-100 cursor-pointer"
+                  >
+                    Cancel / Keep Current Data
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2A: Exported Successfully & Ready to Execute */}
+            {securityStep === 'exported_ready' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 pb-3 border-b border-current">
+                  <div className="p-2 rounded bg-emerald-500/20 text-emerald-500">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-lg font-bold">
+                      ✓ Backup File Downloaded
+                    </h3>
+                    <p className="text-xs font-mono opacity-70">
+                      Your records are safely saved on your computer
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs font-sans leading-relaxed opacity-85">
+                  Your JSON snapshot has been downloaded. You can import this file at any time in Settings. Now you can safely complete the operation:
+                </p>
+
+                <div className="pt-3 flex items-center justify-end gap-3 border-t border-dashed border-current">
+                  <button
+                    type="button"
+                    onClick={closeSecurityFlow}
+                    className="px-3.5 py-2 font-mono text-xs rounded border border-neutral-400 hover:border-black cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmSecurityExecution}
+                    disabled={isProcessingSecurityAction}
+                    className={`px-4 py-2 rounded font-mono text-xs font-bold uppercase tracking-wider text-white transition-all cursor-pointer ${
+                      securityModalAction === 'wipe'
+                        ? 'bg-red-600 hover:bg-red-700'
+                        : 'bg-amber-600 hover:bg-amber-700'
+                    }`}
+                  >
+                    {isProcessingSecurityAction 
+                      ? 'Processing...' 
+                      : `Confirm & ${securityModalAction === 'wipe' ? 'Wipe All Data (0 Records)' : 'Reset Blueprint'}`}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2B: Skipped Export -> "Are you sure?" */}
+            {securityStep === 'are_you_sure' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 pb-3 border-b border-current">
+                  <div className="p-2.5 rounded bg-red-500/20 text-red-500 shrink-0">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-serif text-xl font-bold text-red-600 dark:text-red-400">
+                      ⚠️ Are you sure?
+                    </h3>
+                    <p className="text-xs font-mono opacity-70">
+                      You chose NOT to export a backup file
+                    </p>
+                  </div>
+                </div>
+
+                <div className={`p-3.5 rounded border text-xs font-sans leading-relaxed space-y-2 ${
+                  isDarkMode ? 'bg-red-950/30 border-red-900/60 text-red-200' : 'bg-red-50 border-red-300 text-red-950'
+                }`}>
+                  <p className="font-bold">
+                    This action will permanently delete all existing coaches, daily DM logs, meetings, and notes from both this device and Firebase Cloud.
+                  </p>
+                  <p className="opacity-80">
+                    Without an exported JSON backup, there is no way to recover this data once it is wiped.
+                  </p>
+                </div>
+
+                <div className="pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 border-t border-dashed border-current">
+                  <button
+                    type="button"
+                    onClick={closeSecurityFlow}
+                    className="px-3 py-2 font-mono text-xs rounded border border-neutral-400 hover:border-black cursor-pointer text-center"
+                  >
+                    Cancel / Do Nothing
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSecurityExport}
+                    className="px-3.5 py-2 font-mono text-xs font-bold uppercase tracking-wider rounded border border-blue-600 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-all cursor-pointer text-center"
+                  >
+                    <Download className="w-3.5 h-3.5 inline mr-1" />
+                    <span>Wait, Let Me Export Backup</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleConfirmSecurityExecution}
+                    disabled={isProcessingSecurityAction}
+                    className="px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider rounded bg-red-600 hover:bg-red-700 text-white shadow-md transition-all cursor-pointer text-center"
+                  >
+                    {isProcessingSecurityAction
+                      ? 'Deleting...'
+                      : `Yes, I'm Sure — ${securityModalAction === 'wipe' ? 'Wipe Now' : 'Reset Now'}`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

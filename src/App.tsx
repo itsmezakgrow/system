@@ -22,13 +22,16 @@ import {
   subscribeToMeetings,
   saveMeetingToFirestore,
   deleteMeetingFromFirestore,
-  seedInitialDataIfEmpty
+  seedInitialDataIfEmpty,
+  clearAllFirestoreData,
+  resetWorkspaceToDefaultBlueprint
 } from './services/crmService';
 import { auth, signOut, onAuthStateChanged } from './firebase';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
 import { PipelineView } from './components/PipelineView';
+import { TasksView } from './components/TasksView';
 import { DailyTrackerView } from './components/DailyTrackerView';
 import { CalendarView } from './components/CalendarView';
 import { ScriptsView } from './components/ScriptsView';
@@ -47,6 +50,13 @@ import { CheckCircle2, Download, Upload } from 'lucide-react';
 export default function App() {
   const AUTHORIZED_EMAIL = 'itsmezaki77@gmail.com';
 
+  const validTabs: NavTab[] = ['dashboard', 'pipeline', 'tasks', 'calendar', 'tracker', 'scripts', 'analytics', 'vault'];
+
+  const getTabFromHash = (): NavTab => {
+    const hash = window.location.hash.replace('#', '') as NavTab;
+    return validTabs.includes(hash) ? hash : 'dashboard';
+  };
+
   // Theme state: defaults to paper light mode (false) or saved preference
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('zak_crm_darkmode');
@@ -59,7 +69,26 @@ export default function App() {
     return saved === AUTHORIZED_EMAIL ? saved : null;
   });
 
-  const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
+  // Multi-tab hash navigation
+  const [currentTab, setCurrentTab] = useState<NavTab>(() => getTabFromHash());
+
+  // Synchronize tab state with URL hash (enables right-click open in new tab and browser navigation)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const target = getTabFromHash();
+      setCurrentTab(target);
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const handleNavigateTab = (tab: NavTab) => {
+    setCurrentTab(tab);
+    if (window.location.hash !== `#${tab}`) {
+      window.location.hash = tab;
+    }
+  };
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -93,6 +122,7 @@ export default function App() {
   const [isAddCreatorOpen, setIsAddCreatorOpen] = useState(false);
   const [editingCreator, setEditingCreator] = useState<Creator | null>(null);
   const [archivingCreator, setArchivingCreator] = useState<Creator | null>(null);
+  const [bulkArchivingCreators, setBulkArchivingCreators] = useState<Creator[]>([]);
   const [vaultDrawerCreator, setVaultDrawerCreator] = useState<Creator | null>(null);
   const [isLogActivityOpen, setIsLogActivityOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -313,6 +343,42 @@ export default function App() {
     setMeetings(imported.meetings);
   };
 
+  // Full Workspace Wipe (Start Clean / 0 Records)
+  const handleClearAllData = async () => {
+    setCreators([]);
+    setDailyLogs([]);
+    setScripts([]);
+    setResources([]);
+    setMeetings([]);
+
+    localStorage.removeItem('zak_crm_creators');
+    localStorage.removeItem('zak_crm_logs');
+    localStorage.removeItem('zak_crm_scripts');
+    localStorage.removeItem('zak_crm_resources');
+    localStorage.removeItem('zak_crm_meetings');
+
+    await clearAllFirestoreData();
+    showToast('Workspace wiped clean (0 records). Ready for clean data!');
+  };
+
+  // Reset to Baseline Blueprint Template
+  const handleResetToDemoData = async () => {
+    setCreators(initialCreators);
+    setDailyLogs(initialDailyLogs);
+    setScripts(initialScripts);
+    setResources(initialResources);
+    setMeetings([]);
+
+    localStorage.setItem('zak_crm_creators', JSON.stringify(initialCreators));
+    localStorage.setItem('zak_crm_logs', JSON.stringify(initialDailyLogs));
+    localStorage.setItem('zak_crm_scripts', JSON.stringify(initialScripts));
+    localStorage.setItem('zak_crm_resources', JSON.stringify(initialResources));
+    localStorage.removeItem('zak_crm_meetings');
+
+    await resetWorkspaceToDefaultBlueprint(initialScripts);
+    showToast('Workspace restored to clean benchmark blueprint!');
+  };
+
   // Creator Handlers (Add, Edit, Update, Delete, Archive, Restore)
   const handleAddCreator = (newCreatorData: Omit<Creator, 'id'>) => {
     const newCreator: Creator = {
@@ -342,6 +408,24 @@ export default function App() {
       handleUpdateCreator(updated);
       showToast(`Archived lead: ${target.name}`);
     }
+  };
+
+  const handleBulkArchiveCreators = (creatorIds: string[], reason: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    setCreators(prev => prev.map(c => {
+      if (creatorIds.includes(c.id)) {
+        const updated: Creator = {
+          ...c,
+          isArchived: true,
+          archiveReason: reason,
+          archivedAt: today,
+        };
+        saveCreatorToFirestore(updated);
+        return updated;
+      }
+      return c;
+    }));
+    showToast(`Archived ${creatorIds.length} coaches to the archive ledger`);
   };
 
   const handleRestoreCreator = (creatorId: string) => {
@@ -492,12 +576,20 @@ export default function App() {
   const tabTitles: Record<NavTab, string> = {
     dashboard: 'Agency Overview Dashboard',
     pipeline: 'Hitlist Creator Pipeline & Benchmarks',
+    tasks: 'Daily Outreach Tasks & Conversation Queue',
     calendar: 'Calls & Meeting Calendar',
     tracker: 'Daily Action Tracker',
     scripts: 'Winning Scripts & SOPs',
     analytics: 'Analytics & Revenue Projection',
     vault: 'Links & Password Vault',
   };
+
+  const todayDateStr = new Date().toISOString().split('T')[0];
+  const dueTasksCount = creators.filter(c => 
+    !c.isArchived && 
+    (!c.scheduledContactDate || c.scheduledContactDate <= todayDateStr) && 
+    c.talkedStatus !== 'Answered Today'
+  ).length;
 
   return (
     <div className={`flex h-screen font-sans overflow-hidden transition-colors ${
@@ -506,13 +598,14 @@ export default function App() {
       {/* Sidebar */}
       <Sidebar
         currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
+        setCurrentTab={handleNavigateTab}
         isCollapsed={isCollapsed}
         setIsCollapsed={setIsCollapsed}
         isDarkMode={isDarkMode}
         onToggleTheme={() => setIsDarkMode(!isDarkMode)}
         onSignOut={requestConfirmSignOut}
         creatorCount={creators.filter(c => !c.isArchived).length}
+        dueTasksCount={dueTasksCount}
         isMobileOpen={isMobileSidebarOpen}
         setIsMobileOpen={setIsMobileSidebarOpen}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -540,7 +633,7 @@ export default function App() {
             <DashboardView
               creators={creators}
               dailyLogs={dailyLogs}
-              onNavigateTab={(tab) => setCurrentTab(tab)}
+              onNavigateTab={handleNavigateTab}
               onOpenAddCreator={() => setIsAddCreatorOpen(true)}
               onOpenLogActivity={() => setIsLogActivityOpen(true)}
               onOpenVaultDrawer={(c) => setVaultDrawerCreator(c)}
@@ -558,12 +651,24 @@ export default function App() {
               onOpenAddCreator={() => setIsAddCreatorOpen(true)}
               onOpenEditCreator={(c) => setEditingCreator(c)}
               onOpenArchiveModal={(c) => setArchivingCreator(c)}
+              onOpenBulkArchive={(selected) => setBulkArchivingCreators(selected)}
               onRestoreCreator={handleRestoreCreator}
               onUpdateCreator={handleUpdateCreator}
               onOpenVaultDrawer={(c) => setVaultDrawerCreator(c)}
               searchQuery={searchQuery}
               isDarkMode={isDarkMode}
               onRequestConfirmDelete={requestConfirmDelete}
+            />
+          )}
+
+          {currentTab === 'tasks' && (
+            <TasksView
+              creators={creators}
+              onUpdateCreator={handleUpdateCreator}
+              onOpenAddCreator={() => setIsAddCreatorOpen(true)}
+              onOpenEditCreator={(c) => setEditingCreator(c)}
+              isDarkMode={isDarkMode}
+              onNavigateToCalendar={() => handleNavigateTab('calendar')}
             />
           )}
 
@@ -638,12 +743,17 @@ export default function App() {
         isDarkMode={isDarkMode}
       />
 
-      {/* Archive Creator Modal */}
+      {/* Archive Creator Modal (Single & Bulk) */}
       <ArchiveCreatorModal
         creator={archivingCreator}
-        isOpen={!!archivingCreator}
-        onClose={() => setArchivingCreator(null)}
+        creators={bulkArchivingCreators}
+        isOpen={!!archivingCreator || bulkArchivingCreators.length > 0}
+        onClose={() => {
+          setArchivingCreator(null);
+          setBulkArchivingCreators([]);
+        }}
         onArchive={handleArchiveCreator}
+        onBulkArchive={handleBulkArchiveCreators}
         isDarkMode={isDarkMode}
       />
 
@@ -691,6 +801,8 @@ export default function App() {
         resources={resources}
         meetings={meetings}
         onImportWorkspaceData={handleImportWorkspaceData}
+        onClearAllData={handleClearAllData}
+        onResetToDemoData={handleResetToDemoData}
         userEmail={currentUserEmail}
         onToast={showToast}
       />

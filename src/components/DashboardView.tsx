@@ -310,16 +310,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => onNavigateTab('pipeline')}
-              className={`px-3 py-1.5 font-mono text-xs font-bold uppercase tracking-wider border rounded transition-all ${
+            <a
+              href="#pipeline"
+              onClick={(e) => {
+                if (!e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+                  e.preventDefault();
+                  onNavigateTab('pipeline');
+                }
+              }}
+              className={`px-3 py-1.5 font-mono text-xs font-bold uppercase tracking-wider border rounded transition-all cursor-pointer no-underline ${
                 isDarkMode 
                   ? 'border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-white' 
                   : 'border-neutral-900 bg-white hover:bg-neutral-100 text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
               }`}
             >
               Open Pipeline &rarr;
-            </button>
+            </a>
           </div>
         </div>
 
@@ -334,16 +340,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <p className="text-xs opacity-70 max-w-md mb-4 leading-relaxed font-sans">
               باش تبان ليك النتائج هنا، قيد الكوتش اللي خدام معاه دابا فـ Hitlist Pipeline وبدّل حالتو لـ <strong>"Closed"</strong> أو <strong>"Active Client"</strong>، ودخل معلومات البراند والسبسكرايبرز فـ <strong>Client Vault</strong>.
             </p>
-            <button
-              onClick={() => onNavigateTab('pipeline')}
-              className={`px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider border-2 rounded ${
+            <a
+              href="#pipeline"
+              onClick={(e) => {
+                if (!e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+                  e.preventDefault();
+                  onNavigateTab('pipeline');
+                }
+              }}
+              className={`px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider border-2 rounded cursor-pointer no-underline ${
                 isDarkMode 
                   ? 'bg-amber-500 text-black border-amber-400' 
                   : 'bg-neutral-900 text-white border-neutral-900 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
               }`}
             >
               + Add Partner in Pipeline &rarr;
-            </button>
+            </a>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -581,9 +593,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <div className="flex items-center justify-between pt-3 text-xs font-mono opacity-70">
             <span>Formula: High Volume &times; Custom Looms = Closed Communities</span>
-            <button onClick={() => onNavigateTab('tracker')} className="underline hover:opacity-100 font-bold">
+            <a 
+              href="#tracker"
+              onClick={(e) => {
+                if (!e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+                  e.preventDefault();
+                  onNavigateTab('tracker');
+                }
+              }}
+              className="underline hover:opacity-100 font-bold cursor-pointer"
+            >
               Open Daily Tracker &rarr;
-            </button>
+            </a>
           </div>
         </div>
 
@@ -640,13 +661,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           )}
 
-          <div className="pt-4 border-t border-dashed border-current">
-            <button
-              onClick={() => onNavigateTab('pipeline')}
-              className="w-full py-2 font-mono text-xs font-bold uppercase tracking-wider text-center block underline hover:opacity-80"
+          <div className="pt-4 border-t border-dashed border-current space-y-2">
+            <a
+              href="#tasks"
+              onClick={(e) => {
+                if (!e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+                  e.preventDefault();
+                  onNavigateTab('tasks');
+                }
+              }}
+              className="w-full py-2 font-mono text-xs font-bold uppercase tracking-wider text-center border rounded bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] no-underline"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Launch Outreach Queue &amp; Direct DMs &rarr;</span>
+            </a>
+            <a
+              href="#pipeline"
+              onClick={(e) => {
+                if (!e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
+                  e.preventDefault();
+                  onNavigateTab('pipeline');
+                }
+              }}
+              className="w-full py-1.5 font-mono text-xs font-bold uppercase tracking-wider text-center block underline hover:opacity-80 cursor-pointer"
             >
               View Full Creator Hitlist &rarr;
-            </button>
+            </a>
           </div>
         </div>
       </div>

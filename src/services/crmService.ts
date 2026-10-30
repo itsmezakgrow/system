@@ -278,3 +278,38 @@ export async function seedInitialDataIfEmpty(initial: {
     console.warn('Initial cloud seed attempt:', err);
   }
 }
+
+// Clear all documents from all CRM Firestore collections (wipe database for a clean start)
+export async function clearAllFirestoreData(): Promise<{ success: boolean; deletedCount: number; error?: string }> {
+  try {
+    let deletedCount = 0;
+    const collectionsToClear = ['creators', 'dailyLogs', 'scripts', 'resources', 'meetings'];
+    for (const colName of collectionsToClear) {
+      const snap = await getDocs(collection(db, colName));
+      for (const itemDoc of snap.docs) {
+        await deleteDoc(doc(db, colName, itemDoc.id));
+        deletedCount++;
+      }
+    }
+    return { success: true, deletedCount };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    handleFirestoreError(err, OperationType.DELETE, 'clear_all_firestore');
+    return { success: false, deletedCount: 0, error: message };
+  }
+}
+
+// Reset workspace: wipe everything and reseed baseline default scripts
+export async function resetWorkspaceToDefaultBlueprint(defaultScripts: ScriptItem[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    await clearAllFirestoreData();
+    for (const s of defaultScripts) {
+      await setDoc(doc(db, 'scripts', s.id), sanitizeData(s));
+    }
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    handleFirestoreError(err, OperationType.WRITE, 'reset_blueprint');
+    return { success: false, error: message };
+  }
+}
