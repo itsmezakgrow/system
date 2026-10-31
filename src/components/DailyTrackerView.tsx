@@ -8,6 +8,7 @@ interface DailyTrackerViewProps {
   onAddLog: (log: Omit<DailyLog, 'id'>) => void;
   onUpdateLog: (log: DailyLog) => void;
   onDeleteLog: (id: string) => void;
+  onClearAllLogs?: () => void;
   isDarkMode: boolean;
   onRequestConfirmDelete: (title: string, onConfirm: () => void) => void;
 }
@@ -17,6 +18,7 @@ export const DailyTrackerView: React.FC<DailyTrackerViewProps> = ({
   onAddLog,
   onUpdateLog,
   onDeleteLog,
+  onClearAllLogs,
   isDarkMode,
   onRequestConfirmDelete,
 }) => {
@@ -238,9 +240,22 @@ export const DailyTrackerView: React.FC<DailyTrackerViewProps> = ({
             ? 'bg-[#1C1B19] border-neutral-700' 
             : 'bg-white border-neutral-900 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'
         }`}>
-          <div className="p-4 border-b border-dashed border-current flex items-center justify-between">
+          <div className="p-4 border-b border-dashed border-current flex items-center justify-between gap-2">
             <h3 className="font-mono text-xs font-bold uppercase tracking-wider">Historical Logs</h3>
-            <span className="font-mono text-xs opacity-60">{dailyLogs.length} entries</span>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-xs opacity-60">{dailyLogs.length} entries</span>
+              {dailyLogs.length > 0 && onClearAllLogs && (
+                <button
+                  type="button"
+                  onClick={() => onRequestConfirmDelete('جميع سجلات النشاط اليومي (Clear Daily Ledger)', onClearAllLogs)}
+                  className="font-mono text-[11px] text-red-500 hover:text-red-600 underline flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Wipe all logged entries"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>تصفير السجل</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="overflow-x-auto">

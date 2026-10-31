@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { Creator, CreatorStatus, NicheCategory, CoachCategory } from '../types';
 import { parseSocialHandle, deriveNameFromHandle, parseFollowerInput } from '../utils/urlHelper';
-import { X, UserPlus, ExternalLink, Video, Star, Calendar, Flame, Sparkles } from 'lucide-react';
+import { X, UserPlus, ExternalLink, Video, Star, Calendar, Flame, Sparkles, FileText, Clipboard, Copy, BookOpen, Download } from 'lucide-react';
 
 interface AddCreatorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (creator: Omit<Creator, 'id'>) => void;
   isDarkMode: boolean;
+  onOpenReaderView?: (creator: Creator) => void;
 }
 
 export const AddCreatorModal: React.FC<AddCreatorModalProps> = ({
@@ -15,6 +16,7 @@ export const AddCreatorModal: React.FC<AddCreatorModalProps> = ({
   onClose,
   onAdd,
   isDarkMode,
+  onOpenReaderView,
 }) => {
   const [name, setName] = useState('');
   const [isNameManuallyEdited, setIsNameManuallyEdited] = useState(false);
@@ -29,6 +31,7 @@ export const AddCreatorModal: React.FC<AddCreatorModalProps> = ({
   const [email, setEmail] = useState('');
   const [estimatedMRR, setEstimatedMRR] = useState<number>(15000);
   const [videoUrl, setVideoUrl] = useState('');
+  const [dossierMarkdown, setDossierMarkdown] = useState('');
 
   // Operator Acquisition Fields
   const [score, setScore] = useState<number>(8);
@@ -37,6 +40,32 @@ export const AddCreatorModal: React.FC<AddCreatorModalProps> = ({
   const [loomHook, setLoomHook] = useState('');
   const [source, setSource] = useState('Instagram Explore');
   const [scheduledContactDate, setScheduledContactDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const [pasteNotice, setPasteNotice] = useState<string | null>(null);
+  const dossierTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const handlePasteDossier = async () => {
+    setPasteNotice(null);
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          setDossierMarkdown(text);
+          setPasteNotice('✓ Successfully pasted from clipboard!');
+          setTimeout(() => setPasteNotice(null), 3000);
+          return;
+        }
+      }
+      throw new Error('Clipboard API unavailable or empty');
+    } catch (err) {
+      console.warn('Clipboard read error (sandbox restriction):', err);
+      if (dossierTextareaRef.current) {
+        dossierTextareaRef.current.focus();
+        dossierTextareaRef.current.select();
+      }
+      setPasteNotice('📋 Clipboard auto-read is blocked by browser sandbox. Please press Ctrl+V (or Cmd+V on Mac) directly in the box below!');
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -84,6 +113,7 @@ export const AddCreatorModal: React.FC<AddCreatorModalProps> = ({
       source: source.trim() || undefined,
       scheduledContactDate: scheduledContactDate || undefined,
       talkedStatus: 'Pending',
+      dossierMarkdown: dossierMarkdown.trim() || undefined,
     });
 
     setName('');
@@ -456,6 +486,94 @@ export const AddCreatorModal: React.FC<AddCreatorModalProps> = ({
                 }`}
               />
             </div>
+          </div>
+
+          <div className={`p-3.5 border rounded-lg space-y-2 ${
+            isDarkMode ? 'bg-[#141312] border-neutral-700' : 'bg-[#FAF8F5] border-neutral-300'
+          }`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <FileText className="w-4 h-4" />
+                <span>AI Intelligence Dossier (Markdown .md)</span>
+              </label>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handlePasteDossier}
+                  className="px-2 py-1 rounded text-[10px] font-mono font-bold border border-neutral-400 hover:border-black dark:hover:border-white flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20"
+                  title="Paste Markdown text from clipboard"
+                >
+                  <Clipboard className="w-3 h-3 text-blue-500" />
+                  <span>Paste Text</span>
+                </button>
+
+                {dossierMarkdown && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(dossierMarkdown)}
+                      className="px-2 py-1 rounded text-[10px] font-mono font-bold border border-neutral-400 hover:border-black dark:hover:border-white flex items-center gap-1"
+                      title="Copy Dossier Markdown"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>Copy</span>
+                    </button>
+
+                    {onOpenReaderView && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onOpenReaderView({
+                            id: 'temp_new',
+                            name: name || 'New Coach',
+                            handle: parsed.handle || '@coach',
+                            platform: 'Instagram',
+                            profileUrl: parsed.profileUrl || '',
+                            followers: computedFollowers,
+                            niche: niche,
+                            coachCategory: coachCategory,
+                            status: status,
+                            notes: notes,
+                            lastContactDate: new Date().toISOString().split('T')[0],
+                            touchpoints: [],
+                            dossierMarkdown: dossierMarkdown,
+                          });
+                        }}
+                        className="px-2.5 py-1 rounded text-[10px] font-mono font-bold bg-amber-500 text-black border border-amber-600 hover:bg-amber-400 flex items-center gap-1"
+                        title="Open full-screen Reader View (نمط القراءة)"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>👁️ Reader View (نمط القراءة)</span>
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <p className="text-[10px] opacity-65 leading-relaxed">
+              Paste full Markdown audit text for this coach (includes psychology, Skool blueprint, outreach messages, follow-ups).
+            </p>
+
+            {pasteNotice && (
+              <div className="p-2 text-[11px] font-mono bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-300 rounded font-semibold animate-in fade-in">
+                {pasteNotice}
+              </div>
+            )}
+
+            <textarea
+              ref={dossierTextareaRef}
+              rows={5}
+              value={dossierMarkdown}
+              onChange={(e) => setDossierMarkdown(e.target.value)}
+              placeholder="# 📁 DOSSIER #3: COACH NAME&#10;**Target Priority:** S-Tier | **Status:** Ready for Outreach&#10;&#10;### 1️⃣ Target Profile & Audit&#10;* **Handle:** @coach_handle..."
+              className={`w-full p-2.5 font-mono text-xs border rounded focus:outline-none leading-relaxed transition-all ${
+                pasteNotice ? 'border-amber-500 ring-2 ring-amber-500/30' : ''
+              } ${
+                isDarkMode ? 'bg-[#181716] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+              }`}
+            />
           </div>
 
           <div>

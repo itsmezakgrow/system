@@ -13,6 +13,7 @@ import {
   subscribeToDailyLogs,
   saveDailyLogToFirestore,
   deleteDailyLogFromFirestore,
+  clearAllDailyLogsFromFirestore,
   subscribeToScripts,
   saveScriptToFirestore,
   deleteScriptFromFirestore,
@@ -43,13 +44,18 @@ import { ArchiveCreatorModal } from './components/ArchiveCreatorModal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { LogActivityModal } from './components/LogActivityModal';
 import { ClientVaultDrawer } from './components/ClientVaultDrawer';
+import { DossierReaderModal } from './components/DossierReaderModal';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthGate } from './components/AuthGate';
+import { 
+  isAuthorizedOperatorEmail, 
+  validateSecureSession, 
+  clearSecureSession, 
+  createSecureSession 
+} from './utils/security';
 import { CheckCircle2, Download, Upload } from 'lucide-react';
 
 export default function App() {
-  const AUTHORIZED_EMAIL = 'itsmezaki77@gmail.com';
-
   const validTabs: NavTab[] = ['dashboard', 'pipeline', 'tasks', 'calendar', 'tracker', 'scripts', 'analytics', 'vault'];
 
   const getTabFromHash = (): NavTab => {
@@ -63,11 +69,34 @@ export default function App() {
     return saved ? JSON.parse(saved) : false;
   });
 
-  // Auth state: check if user is signed in with authorized email
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(() => {
-    const saved = localStorage.getItem('zak_crm_auth_email');
-    return saved === AUTHORIZED_EMAIL ? saved : null;
-  });
+  // Zero-trust cryptographic session state
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [isSessionChecking, setIsSessionChecking] = useState<boolean>(true);
+
+  // Validate session signature on mount
+  useEffect(() => {
+    async function verifyInitialSession() {
+      try {
+        const isValid = await validateSecureSession();
+        if (isValid) {
+          const cached = localStorage.getItem('zak_crm_auth_email');
+          if (cached && (await isAuthorizedOperatorEmail(cached))) {
+            setCurrentUserEmail(cached);
+          } else {
+            clearSecureSession();
+          }
+        } else {
+          clearSecureSession();
+        }
+      } catch (err) {
+        console.warn('Initial session check notice:', err);
+        clearSecureSession();
+      } finally {
+        setIsSessionChecking(false);
+      }
+    }
+    verifyInitialSession();
+  }, []);
 
   // Multi-tab hash navigation
   const [currentTab, setCurrentTab] = useState<NavTab>(() => getTabFromHash());
@@ -124,6 +153,7 @@ export default function App() {
   const [archivingCreator, setArchivingCreator] = useState<Creator | null>(null);
   const [bulkArchivingCreators, setBulkArchivingCreators] = useState<Creator[]>([]);
   const [vaultDrawerCreator, setVaultDrawerCreator] = useState<Creator | null>(null);
+  const [readerViewCreator, setReaderViewCreator] = useState<Creator | null>(null);
   const [isLogActivityOpen, setIsLogActivityOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -216,9 +246,8 @@ export default function App() {
     });
 
     const unsubLogs = subscribeToDailyLogs((cloudLogs) => {
-      if (cloudLogs && cloudLogs.length > 0) {
-        setDailyLogs(cloudLogs);
-      }
+      // Always update dailyLogs from cloud, allowing empty state when logs are deleted
+      setDailyLogs(cloudLogs || []);
     });
 
     const unsubScripts = subscribeToScripts((cloudScripts) => {
@@ -250,21 +279,27 @@ export default function App() {
 
   // Real-time Firebase Auth listener
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, (user) => {
-      if (user && user.email?.toLowerCase() === AUTHORIZED_EMAIL.toLowerCase()) {
-        setCurrentUserEmail(user.email);
-        localStorage.setItem('zak_crm_auth_email', user.email);
+    const unsubAuth = onAuthStateChanged(auth, async (user) => {
+      if (user && user.email) {
+        const authorized = await isAuthorizedOperatorEmail(user.email);
+        if (authorized) {
+          await createSecureSession(user.email);
+          localStorage.setItem('zak_crm_auth_email', user.email);
+          setCurrentUserEmail(user.email);
+        } else {
+          await signOut(auth);
+          clearSecureSession();
+        }
       }
     });
     return () => unsubAuth();
   }, []);
 
-  // Guarantee all mock/initial data is seeded to Firebase Cloud if database is empty
+  // Guarantee initial setup data is seeded to Firebase Cloud if database is empty (never seeds daily telemetry)
   useEffect(() => {
     if (currentUserEmail) {
       seedInitialDataIfEmpty({
         creators,
-        dailyLogs,
         scripts,
         resources,
       });
@@ -275,7 +310,7 @@ export default function App() {
   const handleSuccessLogin = (email: string) => {
     localStorage.setItem('zak_crm_auth_email', email);
     setCurrentUserEmail(email);
-    showToast(`Welcome back! Session verified.`);
+    showToast(`Welcome back! Session cryptographically verified.`);
   };
 
   const handleSignOut = async () => {
@@ -284,9 +319,9 @@ export default function App() {
     } catch (err) {
       console.warn('Sign out:', err);
     }
-    localStorage.removeItem('zak_crm_auth_email');
+    clearSecureSession();
     setCurrentUserEmail(null);
-    showToast('Signed out of workspace.');
+    showToast('Signed out of secure workspace.');
   };
 
   // Full Workspace JSON Export
@@ -296,8 +331,8 @@ export default function App() {
     const payload = {
       appName: 'ZAK / Growth Operator CRM',
       exportTimestamp: timestamp,
-      exportVersion: '1.0',
-      userEmail: currentUserEmail || AUTHORIZED_EMAIL,
+      exportVersion: '2.0',
+      userEmail: currentUserEmail || 'authorized_operator',
       stats: {
         creatorsCount: creators.length,
         dailyLogsCount: dailyLogs.length,
@@ -519,6 +554,13 @@ export default function App() {
     showToast('Daily log entry removed');
   };
 
+  const handleClearAllDailyLogs = async () => {
+    setDailyLogs([]);
+    localStorage.removeItem('zak_crm_logs');
+    await clearAllDailyLogsFromFirestore();
+    showToast('تم تصفير سجل النشاط اليومي بالكامل (Daily ledger cleared)');
+  };
+
   // Script Handlers
   const handleSaveScript = (script: ScriptItem) => {
     setScripts(prev => {
@@ -561,6 +603,20 @@ export default function App() {
     showToast('Resource removed');
   };
 
+
+  // While validating cryptographic session signature, show clean secure loader
+  if (isSessionChecking) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center font-mono text-xs ${
+        isDarkMode ? 'bg-[#121110] text-neutral-400' : 'bg-[#F7F5F0] text-neutral-600'
+      }`}>
+        <div className="flex items-center gap-2.5 p-4 rounded border border-current/20">
+          <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+          <span>VERIFYING CRYPTOGRAPHIC OPERATOR SESSION...</span>
+        </div>
+      </div>
+    );
+  }
 
   // If not authenticated, show AuthGate
   if (!currentUserEmail) {
@@ -612,7 +668,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
         <Header
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -655,6 +711,7 @@ export default function App() {
               onRestoreCreator={handleRestoreCreator}
               onUpdateCreator={handleUpdateCreator}
               onOpenVaultDrawer={(c) => setVaultDrawerCreator(c)}
+              onOpenReaderView={(c) => setReaderViewCreator(c)}
               searchQuery={searchQuery}
               isDarkMode={isDarkMode}
               onRequestConfirmDelete={requestConfirmDelete}
@@ -689,6 +746,7 @@ export default function App() {
               onAddLog={handleAddDailyLog}
               onUpdateLog={handleUpdateDailyLog}
               onDeleteLog={handleDeleteDailyLog}
+              onClearAllLogs={handleClearAllDailyLogs}
               isDarkMode={isDarkMode}
               onRequestConfirmDelete={requestConfirmDelete}
             />
@@ -732,6 +790,7 @@ export default function App() {
         onClose={() => setIsAddCreatorOpen(false)}
         onAdd={handleAddCreator}
         isDarkMode={isDarkMode}
+        onOpenReaderView={(c) => setReaderViewCreator(c)}
       />
 
       {/* Edit Creator Modal */}
@@ -741,6 +800,7 @@ export default function App() {
         onClose={() => setEditingCreator(null)}
         onSave={handleUpdateCreator}
         isDarkMode={isDarkMode}
+        onOpenReaderView={(c) => setReaderViewCreator(c)}
       />
 
       {/* Archive Creator Modal (Single & Bulk) */}
@@ -776,6 +836,19 @@ export default function App() {
           setEditingCreator(c);
         }}
         isDarkMode={isDarkMode}
+        onOpenReaderView={(c) => setReaderViewCreator(c)}
+      />
+
+      {/* Fullscreen AI Intelligence Dossier Reader Modal */}
+      <DossierReaderModal
+        isOpen={!!readerViewCreator}
+        onClose={() => setReaderViewCreator(null)}
+        creator={readerViewCreator}
+        allCreatorsWithDossiers={creators.filter(c => !!c.dossierMarkdown)}
+        onSelectCreator={(c) => setReaderViewCreator(c)}
+        onOpenEditModal={(c) => setEditingCreator(c)}
+        isDarkMode={isDarkMode}
+        showToast={showToast}
       />
 
       {/* Universal Confirmation Modal */}

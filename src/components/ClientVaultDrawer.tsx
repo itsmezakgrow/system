@@ -24,7 +24,8 @@ import {
   Compass,
   FileText,
   DollarSign,
-  Award
+  Award,
+  BookOpen
 } from 'lucide-react';
 
 interface ClientVaultDrawerProps {
@@ -34,6 +35,7 @@ interface ClientVaultDrawerProps {
   onSaveVault: (creatorId: string, vaultData: CreatorVault) => void;
   onOpenEditModal: (creator: Creator) => void;
   isDarkMode: boolean;
+  onOpenReaderView?: (creator: Creator) => void;
 }
 
 export const ClientVaultDrawer: React.FC<ClientVaultDrawerProps> = ({
@@ -43,6 +45,7 @@ export const ClientVaultDrawer: React.FC<ClientVaultDrawerProps> = ({
   onSaveVault,
   onOpenEditModal,
   isDarkMode,
+  onOpenReaderView,
 }) => {
   const [activeTab, setActiveTab] = useState<'brand_results' | 'vault' | 'crm'>('brand_results');
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -238,9 +241,9 @@ export const ClientVaultDrawer: React.FC<ClientVaultDrawerProps> = ({
             </button>
           </div>
 
-          {/* Badges bar */}
+          {/* Badges & Actions bar */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className={`font-mono text-xs font-bold px-2.5 py-0.5 border rounded uppercase tracking-wider ${getStatusBadge()}`}>
                 {creator.status === 'Closed' ? 'ACTIVE PARTNER (خدام معاه)' : creator.status}
               </span>
@@ -249,6 +252,24 @@ export const ClientVaultDrawer: React.FC<ClientVaultDrawerProps> = ({
               }`}>
                 {creator.coachCategory}
               </span>
+
+              {onOpenReaderView && (
+                <button
+                  type="button"
+                  onClick={() => onOpenReaderView(creator)}
+                  className={`font-mono text-xs font-bold px-2.5 py-0.5 rounded border flex items-center gap-1.5 transition-all ${
+                    creator.dossierMarkdown
+                      ? 'bg-amber-500 text-black border-amber-600 hover:bg-amber-400 font-black shadow-xs'
+                      : isDarkMode
+                      ? 'border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-200'
+                      : 'border-neutral-900 bg-white hover:bg-neutral-100 text-black'
+                  }`}
+                  title="Open full AI Dossier in Reader View (نمط القراءة)"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>{creator.dossierMarkdown ? '👁️ Read AI Dossier (نمط القراءة)' : '+ Add AI Dossier'}</span>
+                </button>
+              )}
             </div>
 
             {grossMRR > 0 && (

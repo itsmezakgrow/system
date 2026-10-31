@@ -31,8 +31,8 @@ export const Header: React.FC<HeaderProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
 
   const notifications = [
-    { id: 1, title: 'Clean Workspace Loaded', desc: 'All metrics and database initialized to zero.', time: 'Just now' },
-    { id: 2, title: 'Whitelist Enforcement', desc: `Protected session active for ${userEmail}.`, time: 'Active' },
+    { id: 1, title: 'Clean Workspace Loaded', desc: 'All metrics and database initialized.', time: 'Just now' },
+    { id: 2, title: 'Security Shield Active', desc: 'Protected operator session cryptographically verified.', time: 'Active' },
   ];
 
   return (

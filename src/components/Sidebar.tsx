@@ -47,6 +47,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setIsMobileOpen,
   onOpenSettings,
 }) => {
+  const isExpanded = isMobileOpen || !isCollapsed;
+
   const navItems: { id: NavTab; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 className="w-4 h-4" /> },
     { id: 'pipeline', label: 'Hitlist Pipeline', icon: <Target className="w-4 h-4" />, badge: creatorCount.toString() },
@@ -69,12 +71,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       <aside 
-        className={`fixed inset-y-0 left-0 z-50 md:static md:z-30 flex flex-col transition-all duration-300 select-none border-r ${
+        className={`fixed inset-y-0 left-0 z-50 md:relative md:shrink-0 flex flex-col transition-all duration-300 select-none border-r ${
           isMobileOpen 
             ? 'translate-x-0 w-72 max-w-[85vw] shadow-2xl' 
             : '-translate-x-full md:translate-x-0'
         } ${
-          isCollapsed ? 'md:w-18' : 'md:w-64'
+          isCollapsed ? 'md:w-20' : 'md:w-64'
         } ${
           isDarkMode 
             ? 'bg-[#181716] border-neutral-800 text-[#F4F2ED]' 
@@ -95,28 +97,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
 
         {/* Brand Header */}
-        <div className={`flex items-center h-16 border-b px-3 ${
-          isCollapsed ? 'justify-center' : 'justify-between px-4'
+        <div className={`flex items-center h-16 border-b shrink-0 px-3 ${
+          !isExpanded ? 'justify-center' : 'justify-between px-4'
         } ${
           isDarkMode ? 'border-neutral-800' : 'border-neutral-300'
         }`}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => isCollapsed && setIsCollapsed(false)}
+              onClick={() => !isExpanded && setIsCollapsed(false)}
               className={`w-9 h-9 border border-current flex items-center justify-center font-serif font-bold text-lg bg-black text-white shrink-0 rounded transition-transform ${
-                isCollapsed ? 'hover:scale-105 cursor-pointer' : ''
+                !isExpanded ? 'hover:scale-105 cursor-pointer' : ''
               }`}
               title="ZAK / Growth Operator"
             >
               Z
             </button>
 
-            {(!isCollapsed || isMobileOpen) && (
-              <div className="flex flex-col truncate">
+            {isExpanded && (
+              <div className="flex flex-col min-w-0 truncate">
                 <span className="font-mono font-bold text-xs uppercase tracking-wider truncate">
                   ZAK / GROWTH OP
                 </span>
-                <span className="text-[10px] font-mono text-blue-500 font-semibold tracking-wide">
+                <span className="text-[10px] font-mono text-blue-500 font-semibold tracking-wide truncate">
                   50/50 REVENUE SHARE
                 </span>
               </div>
@@ -127,7 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {isMobileOpen && (
             <button
               onClick={() => setIsMobileOpen?.(false)}
-              className={`md:hidden p-1.5 rounded border transition-colors ${
+              className={`md:hidden p-1.5 rounded border transition-colors shrink-0 ${
                 isDarkMode 
                   ? 'border-neutral-700 hover:border-neutral-500 text-neutral-300' 
                   : 'border-neutral-300 hover:border-black text-neutral-700'
@@ -140,11 +142,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Navigation Links */}
-        <nav className={`flex-1 py-4 sm:py-6 space-y-1.5 sm:space-y-2 overflow-y-auto ${
-          isCollapsed && !isMobileOpen ? 'px-2 flex flex-col items-center' : 'px-3'
+        <nav className={`flex-1 py-4 sm:py-6 space-y-1.5 sm:space-y-2 overflow-y-auto overflow-x-hidden scrollbar-thin ${
+          !isExpanded ? 'px-2 flex flex-col items-center' : 'px-3'
         }`}>
-          {(!isCollapsed || isMobileOpen) && (
-            <div className="px-3 pb-2 font-mono text-[10px] font-semibold tracking-widest uppercase opacity-50">
+          {isExpanded && (
+            <div className="px-3 pb-2 font-mono text-[10px] font-semibold tracking-widest uppercase opacity-50 truncate">
               // OPERATOR MODULES
             </div>
           )}
@@ -155,7 +157,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 key={item.id}
                 href={`#${item.id}`}
                 onClick={(e) => {
-                  // If standard left-click without modifier keys, handle in-app without reload
                   if (!e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) {
                     e.preventDefault();
                     setCurrentTab(item.id);
@@ -165,8 +166,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }
                 }}
                 className={`font-mono text-xs transition-all group relative border cursor-pointer select-none no-underline ${
-                  isCollapsed && !isMobileOpen
-                    ? 'w-11 h-11 flex items-center justify-center rounded'
+                  !isExpanded
+                    ? 'w-11 h-11 flex items-center justify-center rounded shrink-0'
                     : 'w-full flex items-center gap-3 px-3 py-2.5 rounded'
                 } ${
                   isActive
@@ -180,11 +181,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               title={item.label}
             >
               <span className="shrink-0">{item.icon}</span>
-              {!isCollapsed && (
+              {isExpanded && (
                 <span className="truncate flex-1 text-left">{item.label}</span>
               )}
-              {!isCollapsed && (
-                <span className={`px-1.5 py-0.2 text-[10px] font-mono border rounded ${
+              {isExpanded && (
+                <span className={`px-1.5 py-0.2 text-[10px] font-mono border rounded shrink-0 ${
                   isActive 
                     ? isDarkMode ? 'border-black text-black' : 'border-white text-white'
                     : 'border-current opacity-60'
@@ -198,15 +199,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Theme Switch & Operator Status (Expanded Mode) */}
-      {!isCollapsed && (
-        <div className={`p-3.5 m-3 border rounded ${
+      {isExpanded ? (
+        <div className={`p-3.5 m-3 border rounded shrink-0 ${
           isDarkMode ? 'bg-[#1F1E1C] border-neutral-800' : 'bg-white border-neutral-300'
         }`}>
           <div className="flex items-center justify-between mb-2">
             <span className="font-mono text-[10px] uppercase tracking-wider opacity-60">Display Style</span>
             <button
               onClick={onToggleTheme}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-mono border transition-all ${
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-mono border transition-all cursor-pointer ${
                 isDarkMode 
                   ? 'bg-neutral-800 border-neutral-700 hover:border-neutral-500 text-neutral-200' 
                   : 'bg-neutral-100 border-neutral-300 hover:border-neutral-900 text-neutral-800'
@@ -220,14 +221,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             Paper-Style System v2.0
           </div>
         </div>
-      )}
-
-      {/* Collapsed Theme Switch Icon */}
-      {isCollapsed && (
-        <div className="py-2 flex justify-center">
+      ) : (
+        <div className="py-2 flex justify-center shrink-0">
           <button
             onClick={onToggleTheme}
-            className={`p-2 rounded border transition-all ${
+            className={`p-2 rounded border transition-all cursor-pointer ${
               isDarkMode 
                 ? 'bg-[#1F1E1C] border-neutral-700 hover:border-neutral-500 text-amber-400' 
                 : 'bg-white border-neutral-300 hover:border-neutral-900 text-neutral-800'
@@ -240,16 +238,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {/* User profile & Sign Out footer */}
-      <div className={`p-3 border-t flex items-center ${
-        isCollapsed ? 'justify-center' : 'justify-between gap-2'
+      <div className={`p-3 border-t flex items-center shrink-0 ${
+        !isExpanded ? 'justify-center' : 'justify-between gap-2'
       } ${
         isDarkMode ? 'border-neutral-800 bg-[#121110]' : 'border-neutral-300 bg-[#F4F1EA]'
       }`}>
-        <div className={`flex items-center gap-2 overflow-hidden ${isCollapsed ? 'justify-center' : ''}`}>
+        <div className={`flex items-center gap-2 overflow-hidden ${!isExpanded ? 'justify-center' : ''}`}>
           <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white font-mono font-bold text-xs shrink-0">
             Z
           </div>
-          {!isCollapsed && (
+          {isExpanded && (
             <div className="flex flex-col overflow-hidden">
               <span className="text-xs font-bold font-sans truncate">Zakaria</span>
               <span className="text-[10px] font-mono opacity-60 truncate">Growth Operator</span>
@@ -257,7 +255,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {(!isCollapsed || isMobileOpen) && (
+        {isExpanded && (
           <div className="flex items-center gap-1.5 shrink-0">
             {onOpenSettings && (
               <button
@@ -267,7 +265,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     setIsMobileOpen?.(false);
                   }
                 }}
-                className={`p-1.5 rounded border transition-colors ${
+                className={`p-1.5 rounded border transition-colors cursor-pointer ${
                   isDarkMode 
                     ? 'border-neutral-700 hover:border-neutral-500 text-neutral-400 hover:text-white' 
                     : 'border-neutral-300 hover:border-neutral-900 text-neutral-600 hover:text-black'
@@ -279,7 +277,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
             <button
               onClick={onSignOut}
-              className={`p-1.5 rounded border transition-colors ${
+              className={`p-1.5 rounded border transition-colors cursor-pointer ${
                 isDarkMode 
                   ? 'border-neutral-700 hover:border-red-500 text-neutral-400 hover:text-red-400' 
                   : 'border-neutral-300 hover:border-red-600 text-neutral-600 hover:text-red-600'

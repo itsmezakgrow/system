@@ -76,6 +76,9 @@ export interface Creator {
   lastTalkedDate?: string; // YYYY-MM-DD of last conversation
   talkedStatus?: 'Pending' | 'Sent - No Answer' | 'Answered Today' | 'Follow-up Due' | 'Call Booked';
   outreachNotes?: string; // Quick note on what was discussed or next move
+
+  // Full AI Intelligence Dossier Document (Markdown format .md)
+  dossierMarkdown?: string; // Deep audit, psychological hooks, Skool blueprint, DM scripts in Markdown
 }
 
 export type MeetingType = 'Discovery Zoom' | 'Pitch & Loom Review' | 'Closing Call (50/50)' | 'Client Strategy' | 'Other';

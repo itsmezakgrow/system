@@ -29,7 +29,12 @@ import {
   CheckSquare,
   Square,
   FileText,
-  X
+  X,
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
+  SlidersHorizontal,
+  Filter
 } from 'lucide-react';
 import { ClientVaultDrawer } from './ClientVaultDrawer';
 import { exportCreatorsToCSV, printCreatorsDossier } from '../utils/exportHelpers';
@@ -46,6 +51,7 @@ interface PipelineViewProps {
   onRestoreCreator: (creatorId: string) => void;
   onUpdateCreator?: (creator: Creator) => void;
   onOpenVaultDrawer?: (creator: Creator) => void;
+  onOpenReaderView?: (creator: Creator) => void;
   searchQuery: string;
   isDarkMode: boolean;
   onRequestConfirmDelete: (title: string, onConfirm: () => void) => void;
@@ -62,6 +68,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
   onRestoreCreator,
   onUpdateCreator,
   onOpenVaultDrawer,
+  onOpenReaderView,
   searchQuery,
   isDarkMode,
   onRequestConfirmDelete,
@@ -85,6 +92,9 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
   // Kanban display layout: 'grid' (stacked 3x2 rows - no horizontal scroll), 'stack' (vertical list), or 'horizontal' (classic)
   const [kanbanLayout, setKanbanLayout] = useState<'grid' | 'stack' | 'horizontal'>('grid');
   const [kanbanStageFilter, setKanbanStageFilter] = useState<string>('All');
+
+  // Mobile Accordion state for Filters & Actions
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   const activeVaultCreator = selectedVaultCreator
     ? creators.find(c => c.id === selectedVaultCreator.id) || selectedVaultCreator
@@ -334,204 +344,279 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
         </div>
       </div>
 
-      {/* Category Tabs */}
-      <div className={`p-4 border flex flex-wrap items-center justify-between gap-3 transition-all ${
-        isDarkMode ? 'bg-[#1C1B19] border-neutral-700' : 'bg-white border-neutral-900 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
+      {/* Mobile Accordion Header (Phone View only - Saves vertical space to view coaches directly) */}
+      <div className={`md:hidden border rounded p-2.5 transition-all ${
+        isDarkMode 
+          ? 'bg-[#1C1B19] border-neutral-700' 
+          : 'bg-white border-neutral-900 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
       }`}>
-        <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
-          <span className="opacity-50 text-[10px] uppercase mr-1">Filter:</span>
-          {categories.map((cat) => {
-            const labels: Record<string, string> = {
-              'All': 'All Records',
-              'Prospect': 'Prospects (Outreach)',
-              'Active Client': 'Active Partners (خدّام معاهم)',
-              'Waiting List': 'Waiting List',
-              'Case Study & Benchmark': 'Benchmarks / مقارنات',
-              'Archived': 'Archived / الأرشيف',
-            };
-            return (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded border transition-all ${
-                  selectedCategory === cat
-                    ? isDarkMode ? 'bg-white text-black font-bold border-white' : 'bg-black text-white font-bold border-black'
-                    : 'border-transparent opacity-60 hover:opacity-100'
-                }`}
-              >
-                {labels[cat] || cat}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Hitlist Export Buttons */}
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => handleDirectCSV()}
-              className={`flex items-center gap-1 px-2.5 py-1.5 font-mono text-xs rounded border transition-all ${
-                isDarkMode 
-                  ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700' 
-                  : 'bg-white hover:bg-neutral-100 text-black border-neutral-800 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
-              }`}
-              title={selectedIds.length > 0 ? `Export ${selectedIds.length} Selected to CSV` : `Export all ${filteredCreators.length} filtered coaches to CSV`}
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-500" />
-              <span>CSV {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}</span>
-            </button>
-
-            <button
-              onClick={() => handleOpenExport()}
-              className={`flex items-center gap-1 px-2.5 py-1.5 font-mono text-xs rounded border transition-all ${
-                isDarkMode 
-                  ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700' 
-                  : 'bg-white hover:bg-neutral-100 text-black border-neutral-800 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
-              }`}
-              title={selectedIds.length > 0 ? `Export ${selectedIds.length} Selected to PDF / Print` : `Export all ${filteredCreators.length} filtered coaches to PDF / Print`}
-            >
-              <Printer className="w-3.5 h-3.5 text-blue-500" />
-              <span>PDF {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}</span>
-            </button>
-          </div>
-
-          {/* View Toggle */}
-          <div className="flex items-center gap-1 border p-1 rounded font-mono text-xs border-current">
-            <button
-              onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded ${viewMode === 'table' ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : 'opacity-60'}`}
-              title="Table Ledger"
-            >
-              <Table className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setViewMode('kanban')}
-              className={`p-1.5 rounded ${viewMode === 'kanban' ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : 'opacity-60'}`}
-              title="Kanban Board"
-            >
-              <Columns3 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
+        <div className="flex items-center justify-between gap-2">
+          {/* Accordion Toggle Trigger */}
           <button
-            onClick={onOpenAddCreator}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 font-mono text-xs font-bold uppercase tracking-wider border rounded transition-all ${
-              isDarkMode
-                ? 'bg-white text-black border-white hover:bg-neutral-200'
-                : 'bg-black text-white border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-neutral-800'
-            }`}
+            type="button"
+            onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
+            className="flex items-center gap-2 flex-1 text-left font-mono text-xs cursor-pointer select-none min-w-0"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Record</span>
+            <div className="p-1 rounded border border-current shrink-0">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-500" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-[11px] uppercase tracking-wider">Filters & Actions</span>
+                {(selectedCategory !== 'All' || selectedScore !== 'All' || selectedFollowerRange !== 'All' || selectedStatus !== 'All') && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" title="Active filters applied" />
+                )}
+              </div>
+              <span className="text-[10px] opacity-60 truncate">
+                {selectedCategory === 'All' ? 'All Records' : selectedCategory} • {filteredCreators.length} {filteredCreators.length === 1 ? 'coach' : 'coaches'}
+              </span>
+            </div>
+            <span className={`ml-auto p-1 rounded border transition-transform shrink-0 ${
+              isDarkMode ? 'border-neutral-700 text-neutral-300' : 'border-neutral-300 text-neutral-700'
+            }`}>
+              {isMobileFiltersOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </span>
           </button>
+
+          {/* Quick Mobile Action Shortcuts (Table/Kanban view switch + Quick Add Record) */}
+          <div className="flex items-center gap-1.5 shrink-0 pl-1.5 border-l border-current/20">
+            <div className="flex items-center border rounded p-0.5 font-mono text-[10px] border-current/40">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`p-1 rounded ${viewMode === 'table' ? (isDarkMode ? 'bg-white text-black font-bold' : 'bg-black text-white font-bold') : 'opacity-50'}`}
+                title="Table Ledger"
+              >
+                <Table className="w-3 h-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('kanban')}
+                className={`p-1 rounded ${viewMode === 'kanban' ? (isDarkMode ? 'bg-white text-black font-bold' : 'bg-black text-white font-bold') : 'opacity-50'}`}
+                title="Kanban Board"
+              >
+                <Columns3 className="w-3 h-3" />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={onOpenAddCreator}
+              className={`flex items-center gap-1 px-2 py-1 font-mono text-[11px] font-bold uppercase rounded border transition-all cursor-pointer ${
+                isDarkMode
+                  ? 'bg-white text-black border-white hover:bg-neutral-200'
+                  : 'bg-black text-white border-black shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:bg-neutral-800'
+              }`}
+              title="Add Coach Record"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Add</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Precision Operator Filters (Score & Follower Range) */}
-      <div className={`p-3 border flex flex-wrap items-center justify-between gap-3 text-xs font-mono transition-all ${
-        isDarkMode ? 'bg-[#181716] border-neutral-800' : 'bg-[#FAF8F5] border-neutral-300'
-      }`}>
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Score Filter */}
-          <div className="flex items-center gap-1.5">
-            <span className="opacity-60 text-[10px] uppercase flex items-center gap-1">
-              <Flame className="w-3 h-3 text-amber-500" />
-              <span>Score:</span>
-            </span>
-            <select
-              value={selectedScore}
-              onChange={(e) => setSelectedScore(e.target.value)}
-              className={`px-2 py-1 border rounded text-xs focus:outline-none ${
-                isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
-              }`}
-            >
-              <option value="All">All Scores (الكل)</option>
-              <option value="9-10">9-10 Elite (أولوية قصوى 🔥)</option>
-              <option value="7-8">7-8 High Potential (إمكانية عالية ⭐)</option>
-              <option value="5-6">5-6 Average (متوسط)</option>
-              <option value="1-4">1-4 Low (منخفض)</option>
-            </select>
+      {/* Filter Panels: Collapsible Accordion on Phone, Always Visible on Desktop */}
+      <div className={`${isMobileFiltersOpen ? 'block space-y-3' : 'hidden md:block md:space-y-3'}`}>
+        {/* Category Tabs */}
+        <div className={`p-4 border flex flex-wrap items-center justify-between gap-3 transition-all ${
+          isDarkMode ? 'bg-[#1C1B19] border-neutral-700' : 'bg-white border-neutral-900 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]'
+        }`}>
+          <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs">
+            <span className="opacity-50 text-[10px] uppercase mr-1">Filter:</span>
+            {categories.map((cat) => {
+              const labels: Record<string, string> = {
+                'All': 'All Records',
+                'Prospect': 'Prospects (Outreach)',
+                'Active Client': 'Active Partners (خدّام معاهم)',
+                'Waiting List': 'Waiting List',
+                'Case Study & Benchmark': 'Benchmarks / مقارنات',
+                'Archived': 'Archived / الأرشيف',
+              };
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-1.5 rounded border transition-all ${
+                    selectedCategory === cat
+                      ? isDarkMode ? 'bg-white text-black font-bold border-white' : 'bg-black text-white font-bold border-black'
+                      : 'border-transparent opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  {labels[cat] || cat}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Follower Range Filter */}
-          <div className="flex items-center gap-1.5">
-            <span className="opacity-60 text-[10px] uppercase flex items-center gap-1">
-              <Users className="w-3 h-3 text-blue-500" />
-              <span>Followers:</span>
-            </span>
-            <select
-              value={selectedFollowerRange}
-              onChange={(e) => setSelectedFollowerRange(e.target.value)}
-              className={`px-2 py-1 border rounded text-xs focus:outline-none ${
-                isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
-              }`}
-            >
-              <option value="All">All Ranges (جميع المتابعين)</option>
-              <option value="<10k">&lt; 10K Followers (&lt;10 آلاف)</option>
-              <option value="10k-50k">10K - 50K Followers (10-50 ألف)</option>
-              <option value="50k-100k">50K - 100K Followers (50-100 ألف)</option>
-              <option value="100k+">100K+ Followers (أكثر من 100 ألف)</option>
-            </select>
-          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Hitlist Export Buttons */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleDirectCSV()}
+                className={`flex items-center gap-1 px-2.5 py-1.5 font-mono text-xs rounded border transition-all ${
+                  isDarkMode 
+                    ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700' 
+                    : 'bg-white hover:bg-neutral-100 text-black border-neutral-800 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+                }`}
+                title={selectedIds.length > 0 ? `Export ${selectedIds.length} Selected to CSV` : `Export all ${filteredCreators.length} filtered coaches to CSV`}
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-500" />
+                <span>CSV {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}</span>
+              </button>
 
-          {/* Stage Filter */}
-          <div className="flex items-center gap-1.5">
-            <span className="opacity-60 text-[10px] uppercase">Stage:</span>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className={`px-2 py-1 border rounded text-xs focus:outline-none ${
-                isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
-              }`}
-            >
-              <option value="All">All Stages</option>
-              {statuses.map(st => (
-                <option key={st} value={st}>{st}</option>
-              ))}
-            </select>
-          </div>
+              <button
+                onClick={() => handleOpenExport()}
+                className={`flex items-center gap-1 px-2.5 py-1.5 font-mono text-xs rounded border transition-all ${
+                  isDarkMode 
+                    ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700' 
+                    : 'bg-white hover:bg-neutral-100 text-black border-neutral-800 shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]'
+                }`}
+                title={selectedIds.length > 0 ? `Export ${selectedIds.length} Selected to PDF / Print` : `Export all ${filteredCreators.length} filtered coaches to PDF / Print`}
+              >
+                <Printer className="w-3.5 h-3.5 text-blue-500" />
+                <span>PDF {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}</span>
+              </button>
+            </div>
 
-          {/* Active Filter Clear */}
-          {(selectedScore !== 'All' || selectedFollowerRange !== 'All' || selectedStatus !== 'All') && (
+            {/* View Toggle (hidden on mobile inside accordion since it's already in the accordion header) */}
+            <div className="hidden md:flex items-center gap-1 border p-1 rounded font-mono text-xs border-current">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`p-1.5 rounded ${viewMode === 'table' ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : 'opacity-60'}`}
+                title="Table Ledger"
+              >
+                <Table className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={`p-1.5 rounded ${viewMode === 'kanban' ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : 'opacity-60'}`}
+                title="Kanban Board"
+              >
+                <Columns3 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
             <button
-              onClick={() => { setSelectedScore('All'); setSelectedFollowerRange('All'); setSelectedStatus('All'); }}
-              className="text-[11px] underline opacity-70 hover:opacity-100 text-rose-500 flex items-center gap-1"
+              onClick={onOpenAddCreator}
+              className={`hidden md:flex items-center gap-1.5 px-3.5 py-1.5 font-mono text-xs font-bold uppercase tracking-wider border rounded transition-all ${
+                isDarkMode
+                  ? 'bg-white text-black border-white hover:bg-neutral-200'
+                  : 'bg-black text-white border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-neutral-800'
+              }`}
             >
-              <RotateCcw className="w-3 h-3" />
-              <span>Reset Filters</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Record</span>
             </button>
-          )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {filteredCreators.length > 0 && (
-            <button
-              onClick={handleToggleSelectAll}
-              className={`flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded border transition-colors ${
-                isAllSelected
-                  ? isDarkMode ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : 'bg-amber-100 text-amber-900 border-amber-400'
-                  : isDarkMode ? 'border-neutral-700 hover:border-neutral-500 opacity-80' : 'border-neutral-300 hover:border-black opacity-80'
-              }`}
-              title={isAllSelected ? 'Deselect all visible coaches' : `Select all ${filteredCreators.length} visible coaches`}
-            >
-              <CheckSquare className="w-3 h-3 text-amber-500" />
-              <span>{isAllSelected ? 'Deselect All' : `Select All (${filteredCreators.length})`}</span>
-            </button>
-          )}
+        {/* Precision Operator Filters (Score & Follower Range) */}
+        <div className={`p-3 border flex flex-wrap items-center justify-between gap-3 text-xs font-mono transition-all ${
+          isDarkMode ? 'bg-[#181716] border-neutral-800' : 'bg-[#FAF8F5] border-neutral-300'
+        }`}>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Score Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="opacity-60 text-[10px] uppercase flex items-center gap-1">
+                <Flame className="w-3 h-3 text-amber-500" />
+                <span>Score:</span>
+              </span>
+              <select
+                value={selectedScore}
+                onChange={(e) => setSelectedScore(e.target.value)}
+                className={`px-2 py-1 border rounded text-xs focus:outline-none ${
+                  isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+                }`}
+              >
+                <option value="All">All Scores (الكل)</option>
+                <option value="9-10">9-10 Elite (أولوية قصوى 🔥)</option>
+                <option value="7-8">7-8 High Potential (إمكانية عالية ⭐)</option>
+                <option value="5-6">5-6 Average (متوسط)</option>
+                <option value="1-4">1-4 Low (منخفض)</option>
+              </select>
+            </div>
 
-          {selectedIds.length > 0 && (
-            <button
-              onClick={handleClearSelection}
-              className="text-[11px] font-mono text-rose-500 underline opacity-80 hover:opacity-100 flex items-center gap-0.5"
-              title="Clear all selections"
-            >
-              <X className="w-3 h-3" />
-              <span>Clear ({selectedIds.length})</span>
-            </button>
-          )}
+            {/* Follower Range Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="opacity-60 text-[10px] uppercase flex items-center gap-1">
+                <Users className="w-3 h-3 text-blue-500" />
+                <span>Followers:</span>
+              </span>
+              <select
+                value={selectedFollowerRange}
+                onChange={(e) => setSelectedFollowerRange(e.target.value)}
+                className={`px-2 py-1 border rounded text-xs focus:outline-none ${
+                  isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+                }`}
+              >
+                <option value="All">All Ranges (جميع المتابعين)</option>
+                <option value="<10k">&lt; 10K Followers (&lt;10 آلاف)</option>
+                <option value="10k-50k">10K - 50K Followers (10-50 ألف)</option>
+                <option value="50k-100k">50K - 100K Followers (50-100 ألف)</option>
+                <option value="100k+">100K+ Followers (أكثر من 100 ألف)</option>
+              </select>
+            </div>
 
-          <div className="opacity-60 text-[11px]">
-            Showing <strong>{filteredCreators.length}</strong> {filteredCreators.length === 1 ? 'coach' : 'coaches'}
+            {/* Stage Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="opacity-60 text-[10px] uppercase">Stage:</span>
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className={`px-2 py-1 border rounded text-xs focus:outline-none ${
+                  isDarkMode ? 'bg-[#141312] border-neutral-700 text-white' : 'bg-white border-neutral-400 text-black'
+                }`}
+              >
+                <option value="All">All Stages</option>
+                {statuses.map(st => (
+                  <option key={st} value={st}>{st}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Active Filter Clear */}
+            {(selectedScore !== 'All' || selectedFollowerRange !== 'All' || selectedStatus !== 'All') && (
+              <button
+                onClick={() => { setSelectedScore('All'); setSelectedFollowerRange('All'); setSelectedStatus('All'); }}
+                className="text-[11px] underline opacity-70 hover:opacity-100 text-rose-500 flex items-center gap-1"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset Filters</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            {filteredCreators.length > 0 && (
+              <button
+                onClick={handleToggleSelectAll}
+                className={`flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded border transition-colors ${
+                  isAllSelected
+                    ? isDarkMode ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : 'bg-amber-100 text-amber-900 border-amber-400'
+                    : isDarkMode ? 'border-neutral-700 hover:border-neutral-500 opacity-80' : 'border-neutral-300 hover:border-black opacity-80'
+                }`}
+                title={isAllSelected ? 'Deselect all visible coaches' : `Select all ${filteredCreators.length} visible coaches`}
+              >
+                <CheckSquare className="w-3 h-3 text-amber-500" />
+                <span>{isAllSelected ? 'Deselect All' : `Select All (${filteredCreators.length})`}</span>
+              </button>
+            )}
+
+            {selectedIds.length > 0 && (
+              <button
+                onClick={handleClearSelection}
+                className="text-[11px] font-mono text-rose-500 underline opacity-80 hover:opacity-100 flex items-center gap-0.5"
+                title="Clear all selections"
+              >
+                <X className="w-3 h-3" />
+                <span>Clear ({selectedIds.length})</span>
+              </button>
+            )}
+
+            <div className="opacity-60 text-[11px]">
+              Showing <strong>{filteredCreators.length}</strong> {filteredCreators.length === 1 ? 'coach' : 'coaches'}
+            </div>
           </div>
         </div>
       </div>
@@ -759,6 +844,22 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
                             <Lock className="w-3 h-3 text-emerald-500" />
                             <span>Vault</span>
                           </button>
+                          {onOpenReaderView && (
+                            <button
+                              onClick={() => onOpenReaderView(creator)}
+                              className={`px-2 py-1 rounded border text-[10px] font-mono font-bold flex items-center gap-1 transition-all ${
+                                creator.dossierMarkdown
+                                  ? 'border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold'
+                                  : isDarkMode
+                                  ? 'border-neutral-700 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300'
+                                  : 'border-neutral-900 bg-white hover:bg-neutral-100 text-black'
+                              }`}
+                              title={creator.dossierMarkdown ? 'Open AI Intelligence Dossier in Reader View (نمط القراءة)' : 'Add AI Dossier Markdown'}
+                            >
+                              <BookOpen className="w-3 h-3 text-amber-500" />
+                              <span>{creator.dossierMarkdown ? 'Dossier' : '+Dossier'}</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => onOpenEditCreator(creator)}
                             className={`p-1.5 rounded border transition-colors ${
@@ -1101,6 +1202,21 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
                               <Lock className="w-2.5 h-2.5 text-emerald-500" />
                               <span>Vault</span>
                             </button>
+
+                            {onOpenReaderView && (
+                              <button
+                                onClick={() => onOpenReaderView(creator)}
+                                className={`font-mono text-[10px] font-bold flex items-center gap-1 px-1.5 py-0.5 rounded border transition-all ${
+                                  creator.dossierMarkdown 
+                                    ? 'border-amber-500 bg-amber-500/20 text-amber-600 dark:text-amber-400 font-extrabold' 
+                                    : 'border-current opacity-70 hover:opacity-100'
+                                }`}
+                                title={creator.dossierMarkdown ? 'Open AI Dossier in Reader View (نمط القراءة)' : 'Add AI Dossier'}
+                              >
+                                <BookOpen className="w-2.5 h-2.5 text-amber-500" />
+                                <span>{creator.dossierMarkdown ? 'Dossier' : '+Dossier'}</span>
+                              </button>
+                            )}
 
                             {creator.isArchived ? (
                               <button

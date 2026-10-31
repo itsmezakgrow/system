@@ -66,9 +66,10 @@ export function subscribeToDailyLogs(onData: (logs: DailyLog[]) => void): () => 
     snapshot.forEach((d) => {
       list.push(d.data() as DailyLog);
     });
-    if (list.length > 0) {
-      onData(list);
-    }
+    // Sort descending by date
+    list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    // Always dispatch, even if empty array, so deleted logs clear properly
+    onData(list);
   }, (error) => {
     handleFirestoreError(error, OperationType.LIST, 'dailyLogs');
   });
@@ -87,6 +88,17 @@ export async function deleteDailyLogFromFirestore(id: string) {
     await deleteDoc(doc(db, 'dailyLogs', id));
   } catch (err) {
     handleFirestoreError(err, OperationType.DELETE, `dailyLogs/${id}`);
+  }
+}
+
+export async function clearAllDailyLogsFromFirestore() {
+  try {
+    const snap = await getDocs(collection(db, 'dailyLogs'));
+    for (const d of snap.docs) {
+      await deleteDoc(d.ref);
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, 'dailyLogs/all');
   }
 }
 
@@ -239,10 +251,9 @@ export async function syncAllToFirestore(data: {
   }
 }
 
-// Seed initial mock data into Firestore if cloud collections are empty
+// Seed initial mock data into Firestore if cloud collections are empty (never seeds daily tracking telemetry)
 export async function seedInitialDataIfEmpty(initial: {
   creators: Creator[];
-  dailyLogs: DailyLog[];
   scripts: ScriptItem[];
   resources: ResourceItem[];
 }) {
@@ -254,12 +265,7 @@ export async function seedInitialDataIfEmpty(initial: {
       }
     }
 
-    const logsSnap = await getDocs(collection(db, 'dailyLogs'));
-    if (logsSnap.empty && initial.dailyLogs.length > 0) {
-      for (const l of initial.dailyLogs) {
-        await setDoc(doc(db, 'dailyLogs', l.id), sanitizeData(l));
-      }
-    }
+    // NOTE: dailyLogs is deliberately NOT seeded so user accountability metrics start at 0
 
     const scriptsSnap = await getDocs(collection(db, 'scripts'));
     if (scriptsSnap.empty && initial.scripts.length > 0) {
